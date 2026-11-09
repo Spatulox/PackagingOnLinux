@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from compileonlinux import elf
-from compileonlinux.config import MAIN_CATEGORIES, AppSpec, suggest_id
+from compileonlinux.config import COMMON_LICENSES, MAIN_CATEGORIES, AppSpec, suggest_id
 from compileonlinux.gui.qt import (
     QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
     QPixmap, QPlainTextEdit, QPushButton, Qt, QVBoxLayout, QWidget, Signal,
@@ -67,8 +67,14 @@ class AppForm(QWidget):
         self.description.setFixedHeight(70)
         self.maintainer = QLineEdit()
         self.maintainer.setPlaceholderText("Prénom Nom <email@exemple.fr>")
-        self.license = QLineEdit("LicenseRef-proprietary")
-        self.license.setToolTip("Identifiant SPDX, ex. MIT, GPL-3.0-only, Apache-2.0")
+        self.license = QComboBox()
+        self.license.addItems(COMMON_LICENSES)
+        self.license.setEditable(True)
+        self.license.setCurrentText("LicenseRef-proprietary")
+        self.license.setToolTip(
+            "Choisissez une licence ou tapez un autre identifiant SPDX\n"
+            "(liste complète : https://spdx.org/licenses/), ex. GPL-3.0-only OR MIT"
+        )
         self.homepage = QLineEdit()
         self.category = QComboBox()
         self.category.addItems(MAIN_CATEGORIES)
@@ -206,7 +212,7 @@ class AppForm(QWidget):
         self.summary.setText(spec.summary)
         self.description.setPlainText(spec.description)
         self.maintainer.setText(spec.maintainer)
-        self.license.setText(spec.license)
+        self.license.setCurrentText(spec.license)
         self.homepage.setText(spec.homepage)
         self.category.setCurrentText(spec.categories[0] if spec.categories else "Utility")
         self.mode.setCurrentIndex(1 if spec.dir else 0)
@@ -229,7 +235,7 @@ class AppForm(QWidget):
             version=self.version.text().strip(),
             summary=self.summary.text().strip(),
             description=self.description.toPlainText().strip(),
-            license=self.license.text().strip() or "LicenseRef-proprietary",
+            license=self.license.currentText().strip() or "LicenseRef-proprietary",
             maintainer=self.maintainer.text().strip(),
             homepage=self.homepage.text().strip(),
             categories=[category] if category else ["Utility"],

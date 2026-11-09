@@ -29,6 +29,14 @@ MAIN_CATEGORIES = [
     "Network", "Office", "Science", "Settings", "System", "Utility",
 ]
 
+# Common SPDX license ids, offered as choices in the GUI (any SPDX expression is accepted).
+COMMON_LICENSES = [
+    "LicenseRef-proprietary", "MIT", "Apache-2.0", "GPL-3.0-only", "GPL-3.0-or-later",
+    "GPL-2.0-only", "GPL-2.0-or-later", "LGPL-3.0-only", "LGPL-3.0-or-later", "LGPL-2.1-only",
+    "LGPL-2.1-or-later", "AGPL-3.0-only", "AGPL-3.0-or-later", "MPL-2.0", "BSD-3-Clause",
+    "BSD-2-Clause", "ISC", "Zlib", "EPL-2.0", "Unlicense", "CC0-1.0",
+]
+
 
 class ConfigError(ValueError):
     pass

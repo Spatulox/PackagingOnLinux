@@ -55,3 +55,11 @@ def test_build_from_gui(window, qtbot):
     log = window.log.toPlainText()
     assert "✔ deb : hello_1.2.3_all.deb" in log
     assert "✔ tarball" in log
+
+
+def test_license_choice_or_custom(window):
+    assert window.form.license.findText("MIT") >= 0
+    window.form.license.setCurrentText("MIT")
+    assert window.current_spec().license == "MIT"
+    window.form.license.setCurrentText("LicenseRef-MyCompany")  # custom value, not in the list
+    assert window.current_spec().license == "LicenseRef-MyCompany"
