@@ -5,7 +5,7 @@ scriptDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 projectDir="$(dirname "$scriptDir")"
 programName="MyGesClient"
 packageVersion="1.0"
-architecture="noarch"
+architecture="x86_64"  # Changé de "noarch" à "x86_64" car Wails produit des binaires spécifiques à l'architecture
 buildDir="$projectDir/builds"
 rpmBuildDir="$HOME/rpmbuild"
 
@@ -28,7 +28,7 @@ Source0: %{name}
 Source1: %{name}.png
 
 BuildArch: $architecture
-Requires: gtk3
+Requires: gtk3, webkit2gtk3
 
 %description
 MyGes Native Desktop application
@@ -58,12 +58,12 @@ EOT
 /usr/share/icons/%{name}/%{name}.png
 
 %post
-update-desktop-database
-gtk-update-icon-cache -f -t /usr/share/icons
+/usr/bin/update-desktop-database &> /dev/null || :
+/usr/bin/gtk-update-icon-cache %{_datadir}/icons &> /dev/null || :
 
 %postun
-update-desktop-database
-gtk-update-icon-cache -f -t /usr/share/icons
+/usr/bin/update-desktop-database &> /dev/null || :
+/usr/bin/gtk-update-icon-cache %{_datadir}/icons &> /dev/null || :
 
 EOF
 

@@ -4,6 +4,7 @@ This idea comes from [this repository](https://github.com/casey-SK/helloWorld-de
 
 Right now, this repo is only for one of my projet : `MyGesClient`.
 Later it will be a GO desktop app which will be able to build different packages (deb, rpm, AppImage, flatpak) with one graphical interface.
+This gonna take a binary file in input and output packages like deb, rpm, AppImage and flatpak.
 
 ## Bash script
 
