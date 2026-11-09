@@ -24,7 +24,8 @@ exec = "bin/compileonlinux"
 icon = "packaging/compileonlinux.svg"
 
 [build]
-command = "rm -rf build/app && mkdir -p build/app && cp -r compileonlinux build/app/ && find build/app -name __pycache__ -prune -exec rm -rf {} + && install -D -m 755 packaging/compileonlinux build/app/bin/compileonlinux"
+# $APP_VERSION (the version above) is stamped into the copied __init__.py.
+command = 'rm -rf build/app && mkdir -p build/app && cp -r compileonlinux build/app/ && find build/app -name __pycache__ -prune -exec rm -rf {} + && sed -i "s/^__version__ = .*/__version__ = \"$APP_VERSION\"/" build/app/compileonlinux/__init__.py && install -D -m 755 packaging/compileonlinux build/app/bin/compileonlinux'
 
 [deps]
 # Pure Python: no ELF to scan. PyQt6 is the GUI toolkit packaged by
