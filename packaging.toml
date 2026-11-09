@@ -27,10 +27,11 @@ icon = "packaging/compileonlinux.svg"
 command = "rm -rf build/app && mkdir -p build/app && cp -r compileonlinux build/app/ && find build/app -name __pycache__ -prune -exec rm -rf {} + && install -D -m 755 packaging/compileonlinux build/app/bin/compileonlinux"
 
 [deps]
-# Pure Python: no ELF to scan. PySide6 is needed for the GUI only.
+# Pure Python: no ELF to scan. PyQt6 is the GUI toolkit packaged by
+# distros (PySide6 is used instead when installed, e.g. in a dev venv).
 auto = false
-deb = ["python3 (>= 3.11)", "python3-pyside6.qtwidgets"]
-rpm = ["python3 >= 3.11", "python3-pyside6"]
+deb = ["python3 (>= 3.11)", "python3-pyqt6"]
+rpm = ["python3 >= 3.11", "python3-pyqt6"]
 
 [output]
 formats = ["deb", "rpm", "tarball"]
