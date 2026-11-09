@@ -1,0 +1,37 @@
+# CompileOnLinux packaging itself. From the repo root:
+#   python3 -m compileonlinux build
+# The build command assembles build/app/ (the Python package + a launcher); it is
+# installed to /usr/lib/compileonlinux/ with /usr/bin/compileonlinux pointing to
+# bin/compileonlinux (no arguments = GUI, otherwise CLI).
+
+[app]
+id = "io.github.spatulox.CompileOnLinux"
+name = "CompileOnLinux"
+version = "0.1.0"
+summary = "Package any prebuilt app for every Linux format"
+description = """
+Describe an application once, pick the formats, and get deb, rpm, tar.gz
+and more packages. Works on any distribution and desktop environment, and
+runs unattended in GitHub/GitLab CI."""
+license = "GPL-3.0-only"
+maintainer = "Spatulox"
+homepage = "https://github.com/Spatulox/CompileOnLinux"
+categories = ["Development"]
+
+[files]
+dir = "build/app"
+exec = "bin/compileonlinux"
+icon = "packaging/compileonlinux.svg"
+
+[build]
+command = "rm -rf build/app && mkdir -p build/app && cp -r compileonlinux build/app/ && find build/app -name __pycache__ -prune -exec rm -rf {} + && install -D -m 755 packaging/compileonlinux build/app/bin/compileonlinux"
+
+[deps]
+# Pure Python: no ELF to scan. PySide6 is needed for the GUI only.
+auto = false
+deb = ["python3 (>= 3.11)", "python3-pyside6.qtwidgets"]
+rpm = ["python3 >= 3.11", "python3-pyside6"]
+
+[output]
+formats = ["deb", "rpm", "tarball"]
+dir = "builds"
