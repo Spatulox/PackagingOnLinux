@@ -2,15 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-    QPlainTextEdit, QPushButton, QVBoxLayout, QWidget,
-)
-
 from compileonlinux import elf
 from compileonlinux.config import MAIN_CATEGORIES, AppSpec, suggest_id
+from compileonlinux.gui.qt import (
+    QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+    QPixmap, QPlainTextEdit, QPushButton, Qt, QVBoxLayout, QWidget, Signal,
+)
 
 
 class PathField(QWidget):
@@ -101,7 +98,7 @@ class AppForm(QWidget):
         self.icon = PathField("Choisir l'icône", file_filter="Images (*.png *.svg)")
         self.icon_preview = QLabel()
         self.icon_preview.setFixedSize(64, 64)
-        self.icon_preview.setAlignment(Qt.AlignCenter)
+        self.icon_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.build_command = QLineEdit()
         self.build_command.setPlaceholderText("optionnel, ex. wails build  (lancé avant le packaging)")
 
@@ -192,7 +189,7 @@ class AppForm(QWidget):
         if pixmap.isNull():
             self.icon_preview.clear()
             return
-        self.icon_preview.setPixmap(pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self.icon_preview.setPixmap(pixmap.scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         self.icon_preview.setToolTip(f"{pixmap.width()}×{pixmap.height()} px")
 
     # ---- AppSpec <-> widgets --------------------------------------------------

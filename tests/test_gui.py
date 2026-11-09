@@ -4,7 +4,7 @@ import shutil
 
 import pytest
 
-pytest.importorskip("PySide6")
+pytest.importorskip("compileonlinux.gui.qt")
 pytest.importorskip("pytestqt")
 
 from compileonlinux import config  # noqa: E402

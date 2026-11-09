@@ -3,17 +3,16 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QAction, QDesktopServices, QFontDatabase, QKeySequence
-from PySide6.QtWidgets import (
-    QApplication, QFileDialog, QFormLayout, QHBoxLayout, QMainWindow, QMessageBox,
-    QPlainTextEdit, QPushButton, QScrollArea, QSplitter, QVBoxLayout, QWidget,
-)
 
 from compileonlinux import __version__, config
 from compileonlinux.config import ConfigError
 from compileonlinux.gui.form import AppForm, PathField
 from compileonlinux.gui.formats import FormatsPanel
+from compileonlinux.gui.qt import (
+    QAction, QApplication, QDesktopServices, QFileDialog, QFontDatabase, QFormLayout, QHBoxLayout,
+    QKeySequence, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSplitter, Qt,
+    QUrl, QVBoxLayout, QWidget,
+)
 from compileonlinux.gui.worker import BuildWorker
 
 TOML_FILTER = "Configuration CompileOnLinux (packaging.toml *.toml)"
@@ -54,7 +53,7 @@ class MainWindow(QMainWindow):
 
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
-        self.log.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
+        self.log.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
         self.log.setPlaceholderText("Le journal de construction s'affichera ici.")
 
         bottom = QWidget()
@@ -63,7 +62,7 @@ class MainWindow(QMainWindow):
         bottom_layout.addLayout(buttons)
         bottom_layout.addWidget(self.log)
 
-        splitter = QSplitter(Qt.Vertical)
+        splitter = QSplitter(Qt.Orientation.Vertical)
         splitter.addWidget(scroll)
         splitter.addWidget(bottom)
         splitter.setStretchFactor(0, 3)
@@ -82,10 +81,10 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         menu = self.menuBar().addMenu("&Fichier")
         for text, shortcut, slot in [
-            ("Nouveau", QKeySequence.New, self.new_config),
-            ("Ouvrir…", QKeySequence.Open, self.ask_open),
-            ("Enregistrer", QKeySequence.Save, self.save),
-            ("Enregistrer sous…", QKeySequence.SaveAs, self.save_as),
+            ("Nouveau", QKeySequence.StandardKey.New, self.new_config),
+            ("Ouvrir…", QKeySequence.StandardKey.Open, self.ask_open),
+            ("Enregistrer", QKeySequence.StandardKey.Save, self.save),
+            ("Enregistrer sous…", QKeySequence.StandardKey.SaveAs, self.save_as),
         ]:
             action = QAction(text, self)
             action.setShortcut(shortcut)
@@ -94,7 +93,7 @@ class MainWindow(QMainWindow):
             toolbar.addAction(action)
         menu.addSeparator()
         quit_action = QAction("Quitter", self)
-        quit_action.setShortcut(QKeySequence.Quit)
+        quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         quit_action.triggered.connect(self.close)
         menu.addAction(quit_action)
 

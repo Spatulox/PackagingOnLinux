@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QCheckBox, QGridLayout, QGroupBox, QLabel
-
 from compileonlinux import core
+from compileonlinux.gui.qt import QCheckBox, QGridLayout, QGroupBox, QLabel
 
 
 class FormatsPanel(QGroupBox):

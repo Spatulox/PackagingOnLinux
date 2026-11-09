@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 CompileOnLinux is a single-interface tool that packages any prebuilt software into Linux distribution formats (AppImage, Flatpak, Snap, deb, rpm, etc.). The user describes the app once, picks the formats, and gets all the packages. It must work on any distro and any desktop environment, and run unattended in GitHub/GitLab CI. Inspired by casey-SK/helloWorld-deb-rpm-flatpak-appImage.
 
-The full roadmap and progress are in `PLAN.md` (French). Done so far: Python core, CLI, PySide6 GUI, deb/rpm/tar.gz backends. Still to do: CI templates (`ci/`), AppImage, Flatpak and Snap backends, `--container` builds, then removing the legacy `scripts/` and `purge_build_install_myges.sh`.
+The full roadmap and progress are in `PLAN.md` (French). Done so far: Python core, CLI, Qt GUI, deb/rpm/tar.gz backends. Still to do: CI templates (`ci/`), AppImage, Flatpak and Snap backends, `--container` builds, then removing the legacy `scripts/` and `purge_build_install_myges.sh`.
 
 The GUI is in French; CLI output and code are in English. `ressources/steps.md` (French) is the original deb feature checklist, modeled on Debreate.
 
@@ -23,7 +23,7 @@ python3 -m compileonlinux build -c path/packaging.toml [-f deb,rpm] [-o outdir]
 .venv/bin/compileonlinux-gui [packaging.toml]          # or: python3 -m compileonlinux gui
 ```
 
-The core needs only Python ≥ 3.11 with no dependencies (`tomllib`). PySide6 is the optional `[gui]` extra; don't import it outside `compileonlinux/gui/`. rpm builds can be tested from a non-rpm host with `docker run --rm -v "$PWD":/src:ro fedora:latest` (install `rpm-build python3`). Docker Desktop cannot mount `/tmp`, so keep outputs inside the container.
+The core needs only Python ≥ 3.11 with no dependencies (`tomllib`). The GUI runs on PySide6 (the pip `[gui]` extra) or PyQt6 (what distros package, and what the self-built deb/rpm depend on). GUI modules import Qt names only from `compileonlinux/gui/qt.py`, never from PySide6/PyQt6 directly, and must use fully scoped enums (`Qt.AlignmentFlag.AlignCenter`), which PyQt6 requires. Don't import Qt outside `compileonlinux/gui/`. rpm builds can be tested from a non-rpm host with `docker run --rm -v "$PWD":/src:ro fedora:latest` (install `rpm-build python3`). Docker Desktop cannot mount `/tmp`, so keep outputs inside the container.
 
 ## Commits
 

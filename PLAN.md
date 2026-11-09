@@ -4,7 +4,7 @@
 
 - [x] 1. Socle : config, staging, core, CLI, backend tar.gz, tests
 - [x] 2. deb + rpm (sans sudo, détection des dépendances)
-- [x] 3. Interface graphique PySide6
+- [x] 3. Interface graphique Qt (PySide6 ou PyQt6)
 - [ ] 4. CI GitHub / GitLab
 - [ ] 5. AppImage, puis Flatpak, puis Snap
 - [ ] 6. Construction en conteneur (`--container`)
@@ -22,7 +22,7 @@ Au départ, le repo contenait deux scripts bash (`scripts/deb.sh`, `scripts/rpm.
 ## Choix techniques
 
 - **Python ≥ 3.11, zéro dépendance pour le cœur** : `tomllib` pour la config, `argparse`, `subprocess`, `shutil`. On l'installe avec `pipx install .`, ou on le lance sans installation via `python3 -m compileonlinux`.
-- **Interface graphique PySide6 (Qt)** : c'est la porte d'entrée principale. Elle rend simple l'ajout d'un logiciel : on choisit le binaire, l'icône, on remplit nom/version/description, on coche les formats, puis on clique sur « Construire ». Qt s'affiche correctement sur GNOME, KDE, XFCE, etc., sous X11 comme sous Wayland. Elle s'installe en dépendance optionnelle (`pip install .[gui]`), pour que la CLI et la CI restent sans dépendance.
+- **Interface graphique Qt (PySide6 ou PyQt6)** : c'est la porte d'entrée principale. Elle rend simple l'ajout d'un logiciel : on choisit le binaire, l'icône, on remplit nom/version/description, on coche les formats, puis on clique sur « Construire ». Qt s'affiche correctement sur GNOME, KDE, XFCE, etc., sous X11 comme sous Wayland. Elle tourne avec PySide6 (dépendance optionnelle `pip install .[gui]`) ou PyQt6 (paquet `python3-pyqt6` des distributions), pour que la CLI et la CI restent sans dépendance.
 - **Config déclarative `packaging.toml`**, que la GUI lit et écrit. C'est le format d'échange entre la GUI, la CLI et la CI : on configure un projet visuellement, on committe le `packaging.toml`, et la CI produit les mêmes paquets.
 - **Indépendant du bureau** : uniquement des standards freedesktop. Le `.desktop` est validé avec `desktop-file-validate`, l'icône va dans le thème `hicolor` (`usr/share/icons/hicolor/<taille>/apps/<id>.png`), et un AppStream `metainfo.xml` est généré (requis par Flatpak, utile pour GNOME Logiciels comme pour KDE Discover). Aucun `sudo` ni `gtk-update-icon-cache` en dur dans les scripts de mainteneur : deb et rpm ont déjà des triggers système pour ça.
 - **Pas de root pour construire** : `dpkg-deb --root-owner-group` remplace les `sudo chown`, et `rpmbuild` utilise un `--define "_topdir <tmp>"` au lieu de `~/rpmbuild`.
@@ -127,7 +127,7 @@ L'architecture est détectée automatiquement à partir de l'en-tête ELF (amd64
 
 1. **Socle** : `config.py`, `staging.py`, `core.py`, `cli.py` (`init`, `doctor`, `check`, `build`), backend `tarball`, tests pytest.
 2. **deb + rpm** : port de `scripts/deb.sh` et `scripts/rpm.sh` en Python sans sudo, logique de `list_dep.py` reprise dans `deps.py`. `examples/mygesclient/packaging.toml` sert de référence.
-3. **GUI PySide6** : formulaire, ouverture et enregistrement du `packaging.toml`, cases des formats reliées à `doctor`, build dans un `QThread` avec logs en direct, bouton « Ouvrir le dossier de sortie ».
+3. **GUI Qt** : formulaire, ouverture et enregistrement du `packaging.toml`, cases des formats reliées à `doctor`, build dans un `QThread` avec logs en direct, bouton « Ouvrir le dossier de sortie ».
 4. **CI** : action GitHub composite et template GitLab. Un job par format (matrice), chacun dans son image dédiée ; les paquets sont publiés comme artefacts, et attachés à la release quand un tag est poussé.
 5. **AppImage**, puis **Flatpak**, puis **Snap** (du plus simple au plus contraignant en CI). Chaque nouveau backend apparaît automatiquement dans la GUI.
 6. **Option `--container`** (case à cocher dans la GUI) pour construire tous les formats localement depuis n'importe quelle distro.

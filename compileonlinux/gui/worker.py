@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QThread, Signal
-
 from compileonlinux import core
 from compileonlinux.config import AppSpec
+from compileonlinux.gui.qt import QThread, Signal
 
 
 class BuildWorker(QThread):
