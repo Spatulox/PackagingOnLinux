@@ -1,4 +1,4 @@
-# Plan : CompileOnLinux, outil de packaging Linux multi-formats (Python + CI)
+# Plan : CompileOnLinux, outil de packaging multi-formats Linux + Windows (Python + CI)
 
 ## Avancement
 
@@ -10,6 +10,8 @@
 - [ ] 6. Construction en conteneur (`--container`)
 - [ ] 7. Dogfooding : CompileOnLinux se package lui-même
 - [ ] 8. Nettoyage : suppression de `scripts/` et `purge_build_install_myges.sh`, mise à jour du README
+- [ ] 9. Langue de l'interface : anglais et français, au choix dans les paramètres
+- [ ] 10. Windows : installeur `.exe` (NSIS) et archive portable `.zip`, construits depuis Linux
 
 ## Contexte
 
@@ -131,6 +133,38 @@ L'architecture est détectée automatiquement à partir de l'en-tête ELF (amd64
 6. **Option `--container`** (case à cocher dans la GUI) pour construire tous les formats localement depuis n'importe quelle distro.
 7. **Dogfooding** : CompileOnLinux se package lui-même (AppImage et Flatpak de la GUI) via son propre `packaging.toml` et sa propre CI.
 8. **Nettoyage** : suppression de `scripts/` et `purge_build_install_myges.sh`, mise à jour du README et de `CLAUDE.md`.
+9. **Langue de l'interface (EN / FR)** : voir la section dédiée plus bas.
+10. **Windows (.exe)** : voir la section dédiée plus bas.
+
+## Langue de l'interface (EN / FR)
+
+- **Module `compileonlinux/i18n.py`** : un dictionnaire de traductions par langue (`en`, `fr`) et une fonction `tr("clé")`. Ajouter une langue revient à ajouter un dictionnaire, sans outil externe. Les fichiers `.ts`/`.qm` de Qt ne sont pas utilisés, car ils demandent `lupdate`/`lrelease` au moment de la construction.
+- **Tous les textes de la GUI passent par `tr()`** : libellés, infobulles, messages d'erreur et boîtes de dialogue. Les textes déjà écrits en dur en français dans `gui/` sont migrés.
+- **Menu « Paramètres → Langue / Language »** : le choix est enregistré avec `QSettings` (`~/.config/CompileOnLinux/`) et appliqué tout de suite, en reconstruisant les libellés sans redémarrer.
+- **Langue par défaut** : celle du système (`QLocale.system()`). L'anglais est utilisé pour toute langue non traduite.
+- **La CLI reste en anglais**, car sa sortie est destinée à la CI et aux journaux. Les messages d'erreur du cœur (validation de la config) passent aussi par `tr()`, pour s'afficher dans la langue choisie dans la GUI.
+- **Tests** : chaque clé existe dans toutes les langues (test automatique), et le changement de langue met à jour les libellés (pytest-qt).
+
+## Windows (.exe)
+
+CompileOnLinux package des binaires **déjà compilés**. Un binaire Linux ne tourne pas sous Windows : il faut donc un binaire Windows en entrée. Beaucoup d'outils savent le produire depuis Linux, par exemple `wails build -platform windows/amd64`, `GOOS=windows go build`, `cargo build --target x86_64-pc-windows-gnu` ou PyInstaller sous Wine. Cette compilation se fait via la commande `[build]` existante, et l'outil ne gère pas lui-même les compilateurs.
+
+- **Config** : nouvelle section optionnelle, indépendante des fichiers Linux :
+  ```toml
+  [windows]
+  binary = "build/bin/MyGesClient.exe"     # ou dir = "dist-win/" + exec = "app.exe"
+  icon = "build/windows/icon.ico"          # optionnel ; sinon converti depuis l'icône PNG
+  build_command = "wails build -platform windows/amd64"   # optionnel
+  ```
+- **Backend `exe`** : génère un script NSIS, compilé par `makensis`, qui est disponible sous Linux (`apt install nsis`, `dnf install mingw32-nsis`) et donc en CI Linux. Le résultat est `<nom>-<version>-setup.exe`, avec :
+  - installation dans `Program Files`, raccourcis dans le menu Démarrer et sur le bureau (optionnel) ;
+  - désinstalleur, et entrée dans « Ajouter ou supprimer des programmes » (nom, version, éditeur, site web, icône) ;
+  - architecture détectée depuis l'en-tête PE (x86, x64, arm64), comme `elf.py` le fait pour Linux.
+- **Backend `zip`** : version portable sans installation (l'exécutable et ses fichiers dans un `.zip`), via le module Python `zipfile`. Aucun outil requis.
+- **Signature de code (optionnelle, plus tard)** : `osslsigncode` avec un certificat fourni par variable d'environnement en CI. Sans signature, Windows SmartScreen affiche un avertissement au premier lancement : à documenter.
+- **GUI** : un onglet ou un groupe « Windows » (binaire .exe, icône), affiché seulement quand un format Windows est coché.
+- **Vérification** : tests unitaires sur le script NSIS généré et la détection PE. En CI, on construit l'installeur de l'app `hello`, puis on l'installe en mode silencieux (`setup.exe /S`) sur un runner `windows-latest` et on vérifie que l'exécutable et le désinstalleur sont présents.
+- **Hors périmètre** : MSI (WiX ne fonctionne que sous Windows) et MSIX/Microsoft Store.
 
 ## Vérification
 
