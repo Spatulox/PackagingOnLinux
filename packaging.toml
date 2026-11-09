@@ -7,7 +7,7 @@
 [app]
 id = "io.github.spatulox.CompileOnLinux"
 name = "CompileOnLinux"
-version = "0.1.0"
+version = "0.1.1"
 summary = "Package any prebuilt app for every Linux format"
 description = """
 Describe an application once, pick the formats, and get deb, rpm, tar.gz
