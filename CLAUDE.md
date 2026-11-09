@@ -25,6 +25,10 @@ python3 -m compileonlinux build -c path/packaging.toml [-f deb,rpm] [-o outdir]
 
 The core needs only Python ≥ 3.11 with no dependencies (`tomllib`). PySide6 is the optional `[gui]` extra; don't import it outside `compileonlinux/gui/`. rpm builds can be tested from a non-rpm host with `docker run --rm -v "$PWD":/src:ro fedora:latest` (install `rpm-build python3`). Docker Desktop cannot mount `/tmp`, so keep outputs inside the container.
 
+## Commits
+
+Make one commit per feature or bug fix. Don't bundle unrelated changes into one commit, and don't let a single feature sprawl across several partial commits.
+
 ## Architecture
 
 - `packaging.toml` is the exchange format between the GUI, the CLI and CI. `config.py` maps it to the `AppSpec` dataclass. Paths are resolved against the config file's directory on load and written back relative to it on save. `examples/mygesclient/packaging.toml` is the reference config.
