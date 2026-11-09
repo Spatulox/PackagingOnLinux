@@ -13,11 +13,14 @@ class CommandError(RuntimeError):
     pass
 
 
-def run(cmd: list[str] | str, log: Log, cwd: Path | None = None, shell: bool = False) -> None:
+def run(
+    cmd: list[str] | str, log: Log, cwd: Path | None = None, shell: bool = False,
+    env: dict[str, str] | None = None,
+) -> None:
     shown = cmd if isinstance(cmd, str) else " ".join(cmd)
     log(f"$ {shown}")
     proc = subprocess.Popen(
-        cmd, cwd=cwd, shell=shell, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        cmd, cwd=cwd, shell=shell, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, errors="replace",
     )
     assert proc.stdout is not None

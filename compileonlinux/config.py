@@ -6,7 +6,8 @@ it are resolved against the directory that contains the file.
 Schema:
     [app]     id, name, version, summary, description, license, maintainer, homepage, categories
     [files]   binary | dir (+ exec), icon
-    [build]   command               (optional, run before packaging)
+    [build]   command               (optional, run before packaging, with $APP_ID,
+                                     $APP_NAME and $APP_VERSION set)
     [deps]    auto, deb, rpm        (optional)
     [output]  formats, dir
 """

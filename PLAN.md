@@ -97,7 +97,7 @@ categories = ["Education"]
 binary = "MyGesClient"           # ou `dir = "dist/"` + `exec = "bin/app"` pour une app multi-fichiers
 icon = "icons/appicon.png"
 
-[build]                          # optionnel
+[build]                          # optionnel, reçoit $APP_VERSION, $APP_NAME, $APP_ID
 command = "wails build"
 
 [deps]                           # optionnel, sinon auto-détection

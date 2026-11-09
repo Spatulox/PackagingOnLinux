@@ -101,6 +101,11 @@ class AppForm(QWidget):
         self.icon_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.build_command = QLineEdit()
         self.build_command.setPlaceholderText("optionnel, ex. wails build  (lancé avant le packaging)")
+        self.build_command.setToolTip(
+            "Lancée dans le dossier de la configuration avant le packaging.\n"
+            "Variables disponibles : $APP_VERSION, $APP_NAME, $APP_ID\n"
+            'ex. go build -ldflags "-X main.version=$APP_VERSION"'
+        )
 
         files = QGroupBox("Fichiers")
         self._files_form = QFormLayout(files)

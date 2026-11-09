@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -39,6 +40,12 @@ def doctor() -> list[ToolStatus]:
     return [ToolStatus(b.name, b.label, b.missing_tools(), b.install_hint) for b in BACKENDS.values()]
 
 
+def build_env(spec: AppSpec) -> dict[str, str]:
+    """Environment of the [build] command: the caller's, plus the app metadata (e.g. to
+    stamp the version into the binary with "$APP_VERSION")."""
+    return {**os.environ, "APP_ID": spec.id, "APP_NAME": spec.name, "APP_VERSION": spec.version}
+
+
 def build(spec: AppSpec, formats: list[str] | None = None, log: Log = print) -> BuildResult:
     """Run the optional build command, stage the app once, then run each requested backend.
 
@@ -52,7 +59,7 @@ def build(spec: AppSpec, formats: list[str] | None = None, log: Log = print) -> 
 
     if spec.build_command:
         log("== build command")
-        run(spec.build_command, log, cwd=spec.base_dir, shell=True)
+        run(spec.build_command, log, cwd=spec.base_dir, shell=True, env=build_env(spec))
 
     problems = spec.validate()
     if problems:

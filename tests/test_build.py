@@ -81,3 +81,10 @@ def test_missing_tool_is_reported_not_raised(hello_spec, monkeypatch):
     monkeypatch.setattr(BACKENDS["rpm"], "required_tools", ("definitely-not-installed-tool",))
     result = core.build(hello_spec, ["rpm", "tarball"], log=lambda _: None)
     assert "rpm" in result.errors and "tarball" in result.packages
+
+
+def test_build_command_gets_app_metadata(hello_spec):
+    hello_spec.build_command = 'echo "$APP_ID $APP_NAME $APP_VERSION" > meta.txt'
+    result = core.build(hello_spec, ["tarball"], log=lambda _: None)
+    assert result.ok
+    assert (hello_spec.base_dir / "meta.txt").read_text() == "org.example.Hello Hello 1.2.3\n"
