@@ -13,3 +13,14 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+
+# Python
+__pycache__/
+*.egg-info/
+.venv/
+.pytest_cache/
+build/
+
+# Inputs and outputs (prebuilt binary, generated packages)
+/MyGesClient
+builds/
