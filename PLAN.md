@@ -9,7 +9,7 @@
 - [ ] 5. AppImage, puis Flatpak, puis Snap
 - [ ] 6. Construction en conteneur (`--container`)
 - [ ] 7. Dogfooding : PackagingOnLinux se package lui-même
-- [ ] 8. Nettoyage : suppression de `scripts/` et `purge_build_install_myges.sh`, mise à jour du README
+- [x] 8. Nettoyage : suppression de `scripts/` et `purge_build_install_myges.sh`, mise à jour du README
 - [ ] 9. Langue de l'interface : anglais et français, au choix dans les paramètres
 - [ ] 10. Windows : installeur `.exe` (NSIS) et archive portable `.zip`, construits depuis Linux
 
@@ -36,7 +36,7 @@ packagingonlinux/
   config.py                  # lecture + validation de packaging.toml -> AppSpec (dataclass)
   elf.py                     # détection de l'architecture depuis l'en-tête ELF
   staging.py                 # arbre FHS commun (usr/bin, .desktop, icônes hicolor, metainfo)
-  deps.py                    # détection des dépendances (reprend scripts/list_dep.py)
+  deps.py                    # détection des dépendances (reprend l'ancien scripts/list_dep.py)
   runner.py                  # exécution des commandes avec journal en direct
   core.py                    # API commune build(spec, formats, log) utilisée par la CLI ET la GUI
   backends/

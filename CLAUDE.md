@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PackagingOnLinux is a single-interface tool that packages any prebuilt software into Linux distribution formats (AppImage, Flatpak, Snap, deb, rpm, etc.). The user describes the app once, picks the formats, and gets all the packages. It must work on any distro and any desktop environment, and run unattended in GitHub/GitLab CI. Inspired by casey-SK/helloWorld-deb-rpm-flatpak-appImage.
 
-The full roadmap and progress are in `PLAN.md` (French). Done so far: Python core, CLI, Qt GUI, deb/rpm/tar.gz backends. Still to do: CI templates (`ci/`), AppImage, Flatpak and Snap backends, `--container` builds, then removing the legacy `scripts/` and `purge_build_install_myges.sh`.
+The full roadmap and progress are in `PLAN.md` (French). Done so far: Python core, CLI, Qt GUI, deb/rpm/tar.gz backends. Still to do: CI templates (`ci/`), AppImage, Flatpak and Snap backends, `--container` builds, an EN/FR interface language setting, and Windows `.exe` packaging.
 
 The GUI is in French; CLI output and code are in English. `ressources/steps.md` (French) is the original deb feature checklist, modeled on Debreate.
 
