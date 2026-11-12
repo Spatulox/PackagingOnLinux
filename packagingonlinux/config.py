@@ -143,7 +143,7 @@ class AppSpec:
     @property
     def file_stem(self) -> str:
         """The app name, safe for file names, keeping its case (e.g. for Windows files)."""
-        return re.sub(r"[^A-Za-z0-9._+-]+", "-", self.name).strip("-.") or self.package_name
+        return re.sub(r"[^\w.+-]+", "-", self.name).strip("-.") or self.package_name
 
     @property
     def description_text(self) -> str:

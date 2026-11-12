@@ -2,10 +2,11 @@
 
 from packagingonlinux.backends.base import Backend, BuildContext
 from packagingonlinux.backends.deb import DebBackend
+from packagingonlinux.backends.nsis import NsisBackend
 from packagingonlinux.backends.rpm import RpmBackend
 from packagingonlinux.backends.tarball import TarballBackend
 from packagingonlinux.backends.winzip import ZipBackend
 
-BACKENDS: dict[str, Backend] = {b.name: b for b in (DebBackend(), RpmBackend(), TarballBackend(), ZipBackend())}
+BACKENDS: dict[str, Backend] = {b.name: b for b in (DebBackend(), RpmBackend(), TarballBackend(), ZipBackend(), NsisBackend())}
 
 __all__ = ["BACKENDS", "Backend", "BuildContext"]

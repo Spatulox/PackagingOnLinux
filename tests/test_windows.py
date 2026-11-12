@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import struct
 import zipfile
 from pathlib import Path
@@ -7,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from packagingonlinux import config, core, ico, pe, winstage
+from packagingonlinux.backends.nsis import esc, nsis_script, product_version, shortcut_name
 from tests.conftest import make_pe, make_png
 
 
@@ -87,3 +89,57 @@ def test_linux_binary_given_as_windows_target_fails_the_windows_formats(windows_
     result = core.build(windows_spec, ["zip", "tarball"], log=lambda _: None)
     assert "not a Windows executable" in result.errors["zip"]
     assert "tarball" in result.packages
+
+
+# ---- NSIS installer -----------------------------------------------------------
+
+def _script(spec, files: dict[str, str] | None = None, arch: str = "x64") -> str:
+    files = files or {"hello.exe": "/p/00000", "hello.ico": "/p/00001"}
+    payload = {rel: Path(src) for rel, src in files.items()}
+    icon = payload.get("hello.ico")
+    return nsis_script(spec, payload, icon, Path("/out/Hello-setup.exe"), arch, 42)
+
+
+def test_nsis_escaping():
+    assert esc('a $b "c"\nd') == 'a $$b $\\"c$\\"$\\nd'
+    assert product_version("1.2.3") == "1.2.3.0"
+    assert product_version("2024.10+git~1") == "2024.10.0.0"
+    assert shortcut_name('A/B: "C"?') == "AB C"
+
+
+def test_nsis_script_installs_per_user(windows_spec):
+    windows_spec.maintainer = 'Jane "J" Doe <j@d.org>'
+    text = _script(windows_spec)
+    assert "RequestExecutionLevel user\n" in text
+    assert 'InstallDir "$LOCALAPPDATA\\Programs\\Hello"' in text
+    assert '!define MUI_ICON "/p/00001"' in text
+    assert '  File "/oname=hello.exe" "/p/00000"\n' in text
+    key = '"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\org.example.Hello"'
+    assert f'WriteRegStr HKCU {key} "DisplayVersion" "1.2.3"' in text
+    assert f'WriteRegStr HKCU {key} "Publisher" "Jane $\\"J$\\" Doe"' in text
+    assert f'WriteRegStr HKCU {key} "DisplayIcon" "$INSTDIR\\hello.ico"' in text
+    assert f'WriteRegDWORD HKCU {key} "EstimatedSize" 42' in text
+    assert "HKLM" not in text and "${RunningX64}" in text
+
+
+def test_nsis_uninstaller_removes_exactly_what_it_installed(windows_spec):
+    windows_spec.windows = config.Target(dir=Path("/dist"), exec="bin/app.exe")
+    text = _script(windows_spec, {"bin/app.exe": "/p/0", "bin/lib/x $1.dll": "/p/1", "readme.txt": "/p/2"})
+    assert '  SetOutPath "$INSTDIR\\bin\\lib"\n  File "/oname=x $$1.dll" "/p/1"\n' in text
+    uninstall = text[text.index('Section "Uninstall"'):]
+    assert uninstall.index('RMDir "$INSTDIR\\bin\\lib"') < uninstall.index('RMDir "$INSTDIR\\bin"') \
+        < uninstall.index('RMDir "$INSTDIR"')
+    assert 'Delete "$INSTDIR\\bin\\lib\\x $$1.dll"' in uninstall
+    assert "/r" not in uninstall
+    assert "MUI_ICON" not in text  # no icon: shortcuts use the exe's own
+    assert '"$INSTDIR\\bin\\app.exe" "" "$INSTDIR\\bin\\app.exe" 0' in text
+
+
+@pytest.mark.skipif(not shutil.which("makensis"), reason="makensis missing (apt install nsis)")
+def test_build_nsis_installer(windows_spec):
+    windows_spec.name = "Hello Wörld"  # non-ASCII name, spaces in file names
+    result = core.build(windows_spec, ["nsis"], log=lambda _: None)
+    assert result.ok, result.errors
+    out = result.packages["nsis"][0]
+    assert out.name == "Hello-Wörld-1.2.3-windows-x64-setup.exe"
+    assert pe.detect_arch(out) == "x86"  # the NSIS stub itself runs everywhere
