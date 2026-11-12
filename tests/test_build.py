@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import tarfile
@@ -74,6 +75,16 @@ def test_build_deb_and_tarball(hello_spec):
     assert "root/root" in contents and "./usr/bin/hello" in contents
     with tarfile.open(result.packages["tarball"][0]) as tar:
         assert "usr/bin/hello" in tar.getnames()
+
+
+@pytest.mark.skipif(not shutil.which("dpkg-deb"), reason="dpkg-deb missing")
+def test_build_deb_with_strict_umask(hello_spec):
+    old = os.umask(0o027)
+    try:
+        result = core.build(hello_spec, ["deb"], log=lambda _: None)
+    finally:
+        os.umask(old)
+    assert result.ok, result.errors
 
 
 def test_missing_tool_is_reported_not_raised(hello_spec, monkeypatch):

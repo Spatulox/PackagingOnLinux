@@ -65,7 +65,8 @@ class DebBackend(Backend):
             "Description": control_description(spec.summary, spec.description_text),
         }
         debian = root / "DEBIAN"
-        debian.mkdir(mode=0o755)
+        debian.mkdir()
+        debian.chmod(0o755)  # dpkg-deb rejects anything else, and mkdir's mode is masked by the umask
         (debian / "control").write_text(
             "".join(f"{k}: {v}\n" for k, v in control.items() if v), encoding="utf-8"
         )
