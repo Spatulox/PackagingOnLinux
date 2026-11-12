@@ -9,6 +9,21 @@ pytest.importorskip("pytestqt")
 
 from packagingonlinux import config  # noqa: E402
 from packagingonlinux.gui.app import MainWindow  # noqa: E402
+from packagingonlinux.gui.qt import QMessageBox  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def dialogs(monkeypatch):
+    """Record message boxes instead of showing them: a modal dialog would block the test forever."""
+    shown: list[tuple[str, str]] = []
+
+    def record(parent, title, text, *args, **kwargs):
+        shown.append((title, text))
+        return QMessageBox.StandardButton.Ok
+
+    for kind in ("information", "warning", "critical", "question"):
+        monkeypatch.setattr(QMessageBox, kind, staticmethod(record))
+    return shown
 
 
 @pytest.fixture
@@ -49,9 +64,10 @@ def test_missing_tool_disables_checkbox(window):
 
 
 @pytest.mark.skipif(not shutil.which("dpkg-deb"), reason="dpkg-deb missing")
-def test_build_from_gui(window, qtbot):
+def test_build_from_gui(window, qtbot, dialogs):
     window.start_build()
     qtbot.waitUntil(lambda: window.worker is None, timeout=30000)
+    assert dialogs == []
     log = window.log.toPlainText()
     assert "✔ deb : hello_1.2.3_all.deb" in log
     assert "✔ tarball" in log
