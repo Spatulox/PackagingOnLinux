@@ -1,6 +1,6 @@
-"""Regenerate packaging/packagingonlinux.ico (used by the Windows packages) from the SVG.
+"""Regenerate selfpack/packagingonlinux.ico (used by the Windows packages) from the SVG.
 
-Usage: python packaging/windows/make_icon.py   (needs PySide6 and Pillow)
+Usage: python selfpack/windows/make_icon.py   (needs PySide6 and Pillow)
 """
 
 import io
@@ -11,9 +11,9 @@ from PySide6.QtCore import QBuffer, QIODevice, Qt
 from PySide6.QtGui import QGuiApplication, QImage, QPainter
 from PySide6.QtSvg import QSvgRenderer
 
-PACKAGING = Path(__file__).resolve().parent.parent
-SVG = PACKAGING / "packagingonlinux.svg"
-ICO = PACKAGING / "packagingonlinux.ico"
+SELFPACK = Path(__file__).resolve().parent.parent
+SVG = SELFPACK / "packagingonlinux.svg"
+ICO = SELFPACK / "packagingonlinux.ico"
 SIZES = [16, 24, 32, 48, 64, 128, 256]
 
 

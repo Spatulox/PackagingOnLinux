@@ -20,10 +20,10 @@ categories = ["Development"]
 
 [linux]
 # $APP_VERSION (the version above) is stamped into the copied __init__.py.
-command = 'rm -rf build/app && mkdir -p build/app && cp -r packagingonlinux build/app/ && find build/app -name __pycache__ -prune -exec rm -rf {} + && sed -i "s/^__version__ = .*/__version__ = \"$APP_VERSION\"/" build/app/packagingonlinux/__init__.py && install -D -m 755 packaging/packagingonlinux build/app/bin/packagingonlinux'
+command = 'rm -rf build/app && mkdir -p build/app && cp -r packagingonlinux build/app/ && find build/app -name __pycache__ -prune -exec rm -rf {} + && sed -i "s/^__version__ = .*/__version__ = \"$APP_VERSION\"/" build/app/packagingonlinux/__init__.py && install -D -m 755 selfpack/linux/launcher build/app/bin/packagingonlinux'
 dir = "build/app"
 exec = "bin/packagingonlinux"
-icon = "packaging/packagingonlinux.svg"
+icon = "selfpack/packagingonlinux.svg"
 
 [windows]
 # A Python + Qt app can't be frozen into an .exe from Linux: the release workflow
@@ -31,7 +31,7 @@ icon = "packaging/packagingonlinux.svg"
 # then builds the zip and nsis formats from it on Linux.
 dir = "build/windows/PackagingOnLinux"
 exec = "PackagingOnLinux.exe"
-icon = "packaging/packagingonlinux.ico"
+icon = "selfpack/packagingonlinux.ico"
 
 [deps]
 # Pure Python: no ELF to scan. PyQt6 is the GUI toolkit packaged by

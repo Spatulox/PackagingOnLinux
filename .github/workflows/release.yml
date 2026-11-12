@@ -60,9 +60,9 @@ jobs:
       - name: Freeze with PyInstaller
         run: >
           pyinstaller --noconfirm --windowed --name PackagingOnLinux
-          --icon packaging/packagingonlinux.ico --collect-submodules packagingonlinux --exclude-module PyQt6
+          --icon selfpack/packagingonlinux.ico --collect-submodules packagingonlinux --exclude-module PyQt6
           --workpath build/pyinstaller --distpath build/windows
-          packaging/windows/launcher.py
+          selfpack/windows/launcher.py
       - uses: actions/upload-artifact@v7
         with:
           name: windows-app

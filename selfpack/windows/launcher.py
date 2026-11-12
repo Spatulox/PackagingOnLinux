@@ -1,4 +1,4 @@
-"""Entry point of the Windows build (PyInstaller), the counterpart of packaging/packagingonlinux.
+"""Entry point of the Windows build (PyInstaller), the counterpart of selfpack/linux/launcher.
 
 With no arguments (Start menu shortcut) it opens the GUI; otherwise it behaves like the CLI.
 """
