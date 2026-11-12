@@ -11,6 +11,7 @@ pytest.importorskip("pytestqt")
 from packagingonlinux import config  # noqa: E402
 from packagingonlinux.gui import app  # noqa: E402
 from packagingonlinux.gui.app import MainWindow  # noqa: E402
+from packagingonlinux.core import BACKENDS  # noqa: E402
 from packagingonlinux.gui.qt import QMessageBox, QSettings, QToolButton  # noqa: E402
 from packagingonlinux.gui.recent import MAX_RECENT, RecentFiles  # noqa: E402
 from packagingonlinux.gui.release import ReleaseDialog  # noqa: E402
@@ -127,6 +128,37 @@ def test_name_suggested_from_windows_exe(qtbot, tmp_path):
     qtbot.addWidget(w)
     w.form.windows.binary.set_path(make_pe(tmp_path / "Cool.exe"))
     assert w.form.name.text() == "Cool"
+
+
+def test_new_config_ticks_every_format(qtbot, window):
+    w = MainWindow()
+    qtbot.addWidget(w)
+    assert w.formats.formats() == list(BACKENDS)
+    window.new_config()
+    assert window.formats.formats() == list(BACKENDS)
+
+
+@pytest.mark.skipif(not shutil.which("dpkg-deb"), reason="dpkg-deb missing")
+def test_build_skips_formats_it_cannot_build(window, qtbot, dialogs):
+    """Every format ticked, no Windows files: the Windows formats (and those whose tools are
+    missing) are skipped with a note, the others are built."""
+    window.formats.set_formats(list(BACKENDS))
+    window.start_build()
+    qtbot.waitUntil(lambda: window.worker is None, timeout=30000)
+    log = window.log.toPlainText()
+    assert "⚠ zip ignoré : rien à empaqueter pour windows" in log
+    assert "✔ deb : hello_1.2.3_all.deb" in log
+    assert "✘" not in log
+    for name, status in window.formats.status.items():
+        if not status.ok:
+            assert f"⚠ {name} ignoré : outil(s) manquant(s)" in log
+
+
+def test_build_nothing_buildable_warns(window, dialogs):
+    window.formats.set_formats(["zip"])  # no [windows] section in hello_project
+    window.start_build()
+    assert window.worker is None
+    assert dialogs and dialogs[0][0] == "Aucun format"
 
 
 def test_formats_grouped_by_platform(window):

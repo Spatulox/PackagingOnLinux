@@ -76,7 +76,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(splitter)
 
         self._make_actions()
-        self.formats.set_formats(["deb", "rpm"])
+        self.formats.set_formats(list(BACKENDS))
         if config_path:
             self.open_config(Path(config_path))
         self._update_title()
@@ -144,7 +144,7 @@ class MainWindow(QMainWindow):
     def new_config(self) -> None:
         self.config_path = None
         self.form.set_spec(config.AppSpec(id="", name="", version="1.0.0", summary=""))
-        self.formats.set_formats(["deb", "rpm"])
+        self.formats.set_formats(list(BACKENDS))
         self.output.set_path(Path.cwd() / "dist")
         self.log.clear()
         self._update_title()
@@ -189,9 +189,21 @@ class MainWindow(QMainWindow):
     # ---- build ------------------------------------------------------------------
     def start_build(self) -> None:
         spec = self.current_spec()
-        formats = self.formats.buildable_formats()
+        # Ticked formats are skipped, with a note in the log, when their tools are missing
+        # (e.g. nsis without makensis) or their platform has nothing to package (e.g. the
+        # Windows formats, ticked by default, when the Windows tab is empty).
+        notes = [f"⚠ {name} ignoré : outil(s) manquant(s) : {', '.join(self.formats.status[name].missing)}"
+                 for name in self.formats.formats() if not self.formats.status[name].ok]
+        formats = []
+        for name in self.formats.buildable_formats():
+            platform = BACKENDS[name].platform
+            if spec.target(platform) is None:
+                notes.append(f"⚠ {name} ignoré : rien à empaqueter pour {platform} (onglet {platform.capitalize()} vide)")
+            else:
+                formats.append(name)
         if not formats:
-            QMessageBox.warning(self, "Aucun format", "Cochez au moins un format disponible sur cette machine.")
+            QMessageBox.warning(self, "Aucun format", "Cochez au moins un format disponible sur cette machine, "
+                                "pour une plateforme dont les fichiers sont indiqués.")
             return
         # Only the platforms being built need their files (e.g. no .exe for a deb).
         # Files a build command will produce are checked by core.build, after running it.
@@ -220,6 +232,8 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Version {spec.version} → {new_version}, enregistrée dans {self.config_path}", 8000)
             spec = self.current_spec()
         self.log.clear()
+        if notes:
+            self.log.appendPlainText("\n".join(notes) + "\n")
         self.build_button.setEnabled(False)
         self.build_button.setText("Construction en cours…")
         self.worker = BuildWorker(spec, formats, self)
