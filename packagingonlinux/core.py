@@ -15,6 +15,7 @@ from packagingonlinux.linux.appimage import AppImageBackend
 from packagingonlinux.linux.deb import DebBackend
 from packagingonlinux.linux.flatpak import FlatpakBackend
 from packagingonlinux.linux.rpm import RpmBackend
+from packagingonlinux.linux.snap import SnapBackend
 from packagingonlinux.linux.tarball import TarballBackend
 from packagingonlinux.runner import CommandError, Log, run
 from packagingonlinux.windows import staging as windows_staging
@@ -25,7 +26,8 @@ from packagingonlinux.windows.zip import ZipBackend
 # Every packaging backend, by format name. Order = display order in the CLI and the GUI.
 # To add a format, write its Backend subclass in linux/ or windows/ and list it here.
 BACKENDS: dict[str, Backend] = {b.name: b for b in (
-    DebBackend(), RpmBackend(), TarballBackend(), AppImageBackend(), FlatpakBackend(), ZipBackend(), NsisBackend())}
+    DebBackend(), RpmBackend(), TarballBackend(), AppImageBackend(), FlatpakBackend(), SnapBackend(),
+    ZipBackend(), NsisBackend())}
 
 
 @dataclass

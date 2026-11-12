@@ -9,7 +9,7 @@ Package any prebuilt application into several Linux distribution formats, and in
 | tar.gz | done |
 | AppImage | done |
 | Flatpak | done |
-| Snap | planned |
+| Snap | done |
 | Windows installer (`setup.exe`, NSIS) | done |
 | Windows portable `.zip` | done |
 
@@ -62,6 +62,8 @@ The `appimage` format needs `mksquashfs` (`squashfs-tools`). The first build dow
 
 The `flatpak` format needs `flatpak` and `flatpak-builder` (plus `librsvg2-common` for an SVG icon), and a square icon. The first build installs the runtime and its SDK for the current user from Flathub. The app runs on that runtime, in a sandbox: `[flatpak] finish_args` lists what it may access (by default the display and the GPU, not the user's files; add `--filesystem=home`, `--share=network`… as needed). Install the result with `flatpak install --user --bundle <file>.flatpak`.
 
+The `snap` format needs `snapcraft` (`snap install snapcraft --classic`). By default it builds in an LXD container (`lxd init --auto` once); in CI, on the Ubuntu release matching `[snap] base` (24.04 for `core24`), set `SNAPCRAFT_BUILD_ENVIRONMENT=host` and run the build as root. This is the only format that may need root. The snap name is the package name (lowercase app name): at most 40 characters among `a-z`, `0-9` and `-`. Install the result with `snap install --dangerous <file>.snap` (add `--classic` for a classic snap).
+
 ## `packaging.toml`
 
 The GUI, the CLI and CI all read the same file, so you can set a project up in the GUI, commit the file, and let CI produce the same packages. Paths are relative to the file.
@@ -96,6 +98,14 @@ runtime = "org.freedesktop.Platform"
 runtime_version = "26.08"
 sdk = ""                          # empty: the runtime's SDK (org.freedesktop.Sdk)
 finish_args = ["--share=ipc", "--socket=wayland", "--socket=fallback-x11", "--device=dri"]
+
+[snap]                            # optional, these are the defaults
+base = "core24"
+confinement = "strict"            # or "classic" (same access as a deb), "devmode"
+grade = ""                        # empty: "devel" if the version has a "~", else "stable"
+plugs = ["desktop", "desktop-legacy", "wayland", "x11", "opengl", "home", "network"]
+extensions = []                   # e.g. ["gnome"] for a GTK app, ["kde-neon-6"] for Qt 6
+stage_packages = []               # Ubuntu packages to bundle (libraries the base lacks)
 
 [output]
 formats = ["deb", "rpm", "tarball", "zip", "nsis"]

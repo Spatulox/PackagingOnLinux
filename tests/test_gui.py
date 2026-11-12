@@ -79,12 +79,15 @@ def test_form_save_roundtrip(window, hello_project, hello_spec):
     assert again.linux == hello_spec.linux
 
 
-def test_save_keeps_flatpak_options(window, hello_project):
-    hello_project.write_text(hello_project.read_text() + '\n[flatpak]\nfinish_args = ["--filesystem=home"]\n')
+def test_save_keeps_format_options(window, hello_project):
+    hello_project.write_text(hello_project.read_text() + '\n[flatpak]\nfinish_args = ["--filesystem=home"]\n'
+                             '\n[snap]\nconfinement = "classic"\n')
     window.open_config(hello_project)
     window.form.summary.setText("Changed")
     assert window.save()
-    assert config.load(hello_project).flatpak.finish_args == ["--filesystem=home"]
+    again = config.load(hello_project)
+    assert again.flatpak.finish_args == ["--filesystem=home"]
+    assert again.snap.confinement == "classic"
 
 
 def test_id_is_suggested_from_name(qtbot):

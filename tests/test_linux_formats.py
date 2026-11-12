@@ -11,7 +11,7 @@ import pytest
 
 from packagingonlinux import core
 from packagingonlinux.backend import BuildContext
-from packagingonlinux.linux import appimage, flatpak, staging
+from packagingonlinux.linux import appimage, flatpak, snap, staging
 from tests.conftest import make_png
 
 
@@ -110,3 +110,57 @@ def test_flatpak_rejects_dash_before_last_id_part(hello_spec):
     hello_spec.id = "org.my-site.Hello"
     with pytest.raises(ValueError, match="last part"):
         flatpak.check(hello_spec)
+
+
+# ---- Snap --------------------------------------------------------------------
+
+def test_snapcraft_yaml(hello_spec, monkeypatch):
+    monkeypatch.setattr(snap, "host_arch", lambda: "amd64")
+    data = json.loads(json.dumps(snap.snapcraft_yaml(hello_spec)))
+    assert (data["name"], data["version"], data["base"]) == ("hello", "1.2.3", "core24")
+    assert (data["title"], data["contact"]) == ("Hello", "test@example.org") and "website" not in data
+    assert (data["grade"], data["confinement"]) == ("stable", "strict")
+    assert data["platforms"] == {"all": {"build-on": ["amd64"], "build-for": ["all"]}}
+    assert data["parts"] == {"hello": {"plugin": "dump", "source": "stage"}}
+    app = data["apps"]["hello"]
+    assert app["command"] == "usr/bin/hello"
+    assert app["desktop"] == "usr/share/applications/org.example.Hello.desktop"
+    assert "wayland" in app["plugs"] and "extensions" not in app
+
+
+def test_snapcraft_yaml_options(hello_spec, monkeypatch):
+    monkeypatch.setattr(snap, "host_arch", lambda: "amd64")
+    hello_spec.version = "2.0.0~rc1"
+    hello_spec.snap.confinement = "classic"
+    hello_spec.snap.extensions = ["gnome"]
+    hello_spec.snap.stage_packages = ["libfoo1"]
+    data = snap.snapcraft_yaml(hello_spec)
+    assert data["grade"] == "devel" and data["confinement"] == "classic"
+    assert "plugs" not in data["apps"]["hello"] and data["apps"]["hello"]["extensions"] == ["gnome"]
+    assert data["parts"]["hello"]["stage-packages"] == ["libfoo1"]
+
+
+def test_snap_desktop_icon_points_into_the_snap(hello_spec, tmp_path):
+    staging.build_stage(hello_spec, tmp_path)
+    snap.point_icon_into_snap(hello_spec, tmp_path)
+    desktop = (tmp_path / "usr/share/applications/org.example.Hello.desktop").read_text()
+    assert "Icon=${SNAP}/usr/share/icons/hicolor/64x64/apps/org.example.Hello.png\n" in desktop
+    assert "Exec=hello\n" in desktop
+
+
+@pytest.mark.parametrize("field, value, message", [
+    ("name", "a" * 41, "40 characters"),
+    ("name", "123", "at least one letter"),
+    ("summary", "s" * 79, "78 characters"),
+])
+def test_snap_check(hello_spec, field, value, message):
+    snap.check(hello_spec)
+    setattr(hello_spec, field, value)
+    with pytest.raises(ValueError, match=message):
+        snap.check(hello_spec)
+
+
+def test_snap_check_confinement(hello_spec):
+    hello_spec.snap.confinement = "loose"
+    with pytest.raises(ValueError, match="confinement"):
+        snap.check(hello_spec)

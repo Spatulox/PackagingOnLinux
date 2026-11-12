@@ -6,7 +6,7 @@ from pathlib import Path
 from packagingonlinux.linux import elf
 from packagingonlinux.windows import pe
 from packagingonlinux.config import (
-    COMMON_LICENSES, MAIN_CATEGORIES, AppSpec, FlatpakOptions, Target, suggest_id,
+    COMMON_LICENSES, MAIN_CATEGORIES, AppSpec, FlatpakOptions, SnapOptions, Target, suggest_id,
 )
 from packagingonlinux.gui.qt import (
     QCheckBox, QComboBox, QFileDialog, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
@@ -222,6 +222,7 @@ class AppForm(QWidget):
         super().__init__(parent)
         self._id_auto = True
         self._flatpak = FlatpakOptions()
+        self._snap = SnapOptions()
 
         # --- application metadata
         self.name = QLineEdit()
@@ -325,6 +326,7 @@ class AppForm(QWidget):
         self._id_auto = False
         # Per-format options have no widget yet: keep them so that saving does not drop them.
         self._flatpak = spec.flatpak
+        self._snap = spec.snap
         self.name.setText(spec.name)
         self.app_id.setText(spec.id)
         self.version.setText(spec.version)
@@ -358,6 +360,7 @@ class AppForm(QWidget):
             deps_deb=_split(self.deps_deb.text()),
             deps_rpm=_split(self.deps_rpm.text()),
             flatpak=copy.deepcopy(self._flatpak),
+            snap=copy.deepcopy(self._snap),
             formats=formats,
             output_dir=output_dir,
             base_dir=base_dir,

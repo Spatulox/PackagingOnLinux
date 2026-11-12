@@ -6,7 +6,7 @@
 - [x] 2. deb + rpm (sans sudo, détection des dépendances)
 - [x] 3. Interface graphique Qt (PySide6 ou PyQt6)
 - [ ] 4. CI GitHub / GitLab
-- [ ] 5. AppImage, puis Flatpak, puis Snap
+- [x] 5. AppImage, puis Flatpak, puis Snap
 - [ ] 6. Construction en conteneur (`--container`)
 - [ ] 7. Dogfooding : PackagingOnLinux se package lui-même
 - [x] 8. Nettoyage : suppression des anciens scripts bash (`scripts/` et le script de purge), mise à jour du README
@@ -47,7 +47,7 @@ packagingonlinux/            # le code de l'outil, rangé par plateforme
     deb.py  rpm.py  tarball.py
     appimage.py              # AppDir + mksquashfs + runtime type2
     flatpak.py               # manifeste + flatpak-builder + build-bundle
-    snap.py                  # à venir
+    snap.py                  # snapcraft.yaml + snapcraft pack
   windows/
     pe.py                    # architecture depuis l'en-tête PE d'un .exe
     ico.py                   # icône .ico en Python pur
@@ -136,7 +136,7 @@ dir = "dist"
 | tar.gz | Python `tarfile` | solution de repli universelle | fait |
 | AppImage | `mksquashfs` + runtime type2 (release épinglée, vérifiée par sha256, téléchargée dans `~/.cache/packagingonlinux/`, ou `$PACKAGINGONLINUX_APPIMAGE_RUNTIME` hors ligne) | AppDir = staging + `AppRun`, `.desktop` et icône à la racine. Ni `appimagetool` ni FUSE pour construire. Les libs GTK/WebKit ne sont pas embarquées (option `linuxdeploy` plus tard) | fait |
 | Flatpak | `flatpak-builder` + `flatpak build-bundle` | manifeste généré (un module `simple` qui copie le staging dans `/app`), sortie `.flatpak` qui renvoie vers Flathub pour le runtime. Runtime et permissions dans `[flatpak]` (par défaut `org.freedesktop.Platform`, affichage + GPU, pas d'accès aux fichiers). Nécessite une icône carrée | fait |
-| Snap | `snapcraft --destructive-mode` dans un conteneur Ubuntu | confinement `strict` + extension `gnome` si GTK, sinon `classic` | à faire |
+| Snap | `snapcraft pack` (LXD par défaut, ou `SNAPCRAFT_BUILD_ENVIRONMENT=host` en root sur l'Ubuntu de la base, en CI) | `snapcraft.yaml` généré en JSON (une part `dump` du staging). Options dans `[snap]` : base `core24`, confinement `strict` par défaut (plugs bureau), `classic`, extensions (`gnome`, `kde-neon-6`), `stage_packages` | fait |
 | zip (Windows) | Python `zipfile` | version portable, sans installation | fait |
 | nsis (Windows) | `makensis` | installeur `setup.exe` par utilisateur, sans droits admin | fait |
 

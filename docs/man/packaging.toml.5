@@ -130,6 +130,39 @@ options.
 Default: \fB["\-\-share=ipc", "\-\-socket=wayland", "\-\-socket=fallback\-x11",
 "\-\-device=dri"]\fR: the display, the GPU and IPC, but not the user's files (add e.g.
 \fB"\-\-filesystem=home"\fR) nor the network (\fB"\-\-share=network"\fR).
+.SH "[snap] SECTION"
+Options of the \fBsnap\fR format (optional).
+An unknown key is an error.
+.TP
+\fBbase\fR (string)
+The base snap the app runs on.
+Building on the host (\fBSNAPCRAFT_BUILD_ENVIRONMENT=host\fR) needs the matching Ubuntu
+release (24.04 for \fBcore24\fR).
+Default: \fBcore24\fR.
+.TP
+\fBconfinement\fR (string)
+\fBstrict\fR (only the \fBplugs\fR below), \fBclassic\fR (the same access as a deb; the
+Snap Store accepts it only after a manual review) or \fBdevmode\fR.
+Default: \fBstrict\fR.
+.TP
+\fBgrade\fR (string)
+\fBstable\fR or \fBdevel\fR.
+Default: empty, meaning \fBdevel\fR when the version contains a \fB~\fR (a pre\-release),
+\fBstable\fR otherwise.
+.TP
+\fBplugs\fR (list of strings)
+The interfaces a strict snap connects to (ignored for a classic snap).
+Default: \fB["desktop", "desktop\-legacy", "wayland", "x11", "opengl", "home",
+"network"]\fR.
+.TP
+\fBextensions\fR (list of strings)
+snapcraft extensions, e.g. \fB["gnome"]\fR for a GTK app or \fB["kde\-neon\-6"]\fR for
+a Qt 6 app.
+Default: none.
+.TP
+\fBstage_packages\fR (list of strings)
+Ubuntu packages to bundle in the snap, for libraries the base does not have.
+Default: none.
 .SH "[output] SECTION"
 .TP
 \fBformats\fR (list of strings)

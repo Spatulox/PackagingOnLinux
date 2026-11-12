@@ -45,6 +45,15 @@ def test_flatpak_options_roundtrip(hello_spec, hello_project):
     assert config.load(hello_project).flatpak == hello_spec.flatpak
 
 
+def test_snap_options_roundtrip(hello_spec, hello_project):
+    hello_spec.snap.confinement = "classic"
+    hello_spec.snap.extensions = ["gnome"]
+    config.save(hello_spec, hello_project)
+    text = hello_project.read_text()
+    assert '[snap]\nconfinement = "classic"\nextensions = ["gnome"]\n' in text
+    assert config.load(hello_project).snap == hello_spec.snap
+
+
 def test_flatpak_unknown_key_rejected(hello_project):
     hello_project.write_text(hello_project.read_text() + '\n[flatpak]\nruntimeversion = "25.08"\n')
     with pytest.raises(config.ConfigError, match="runtimeversion"):
