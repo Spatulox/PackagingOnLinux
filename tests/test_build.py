@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import errno
 import os
 import shutil
 import subprocess
 import tarfile
+from pathlib import Path
 
 import pytest
 
 from packagingonlinux import config, core
 from packagingonlinux.backend import BuildContext
-from packagingonlinux.linux import staging
+from packagingonlinux.linux import rpm, staging
 from packagingonlinux.linux.rpm import spec_file
 from tests.conftest import make_png
 
@@ -61,6 +63,30 @@ def test_rpm_spec_lists_files(hello_spec, tmp_path):
     text = spec_file(BuildContext(hello_spec, stage, tmp_path, tmp_path, print))
     assert "Name: hello\n" in text and "BuildArch: noarch\n" in text
     assert "\n/usr/bin/hello\n" in text
+
+
+def test_rpm_moved_across_filesystems(hello_spec, tmp_path, monkeypatch):
+    """The rpm is built in /tmp and moved to the output dir, which may be another
+    filesystem (CI container with the repo mounted from the host): a rename fails there."""
+    def fake_rpmbuild(cmd, log):
+        topdir = Path(cmd[cmd.index("--define") + 1].removeprefix("_topdir "))
+        (topdir / "RPMS/noarch").mkdir(parents=True)
+        (topdir / "RPMS/noarch/hello-1.2.3-1.noarch.rpm").write_bytes(b"rpm")
+
+    def cross_device_rename(src, dst):
+        raise OSError(errno.EXDEV, "Invalid cross-device link", src, None, dst)
+
+    monkeypatch.setattr(rpm, "run", fake_rpmbuild)
+    monkeypatch.setattr(os, "rename", cross_device_rename)
+    monkeypatch.setattr(os, "replace", cross_device_rename)
+    stage, work, out = tmp_path / "stage", tmp_path / "work", tmp_path / "out"
+    staging.build_stage(hello_spec, stage)
+    work.mkdir()
+    out.mkdir()
+    built = rpm.RpmBackend().build(BuildContext(hello_spec, stage, work, out, print))
+    assert built == [out / "hello-1.2.3-1.noarch.rpm"]
+    assert built[0].read_bytes() == b"rpm"
+    assert not list((work / "rpmbuild/RPMS").rglob("*.rpm"))
 
 
 @pytest.mark.skipif(not shutil.which("dpkg-deb"), reason="dpkg-deb missing")

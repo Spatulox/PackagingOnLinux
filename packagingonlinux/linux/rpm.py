@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from packagingonlinux.linux import staging
@@ -68,6 +69,9 @@ class RpmBackend(Backend):
         results = []
         for rpm in (topdir / "RPMS").rglob("*.rpm"):
             dest = ctx.outdir / rpm.name
-            rpm.replace(dest)
+            # Not Path.replace: the work dir (in /tmp) and the output dir are often on
+            # different filesystems (e.g. a CI container with the repo mounted from the
+            # host), where a rename fails with EXDEV. shutil.move copies then.
+            shutil.move(rpm, dest)
             results.append(dest)
         return results
