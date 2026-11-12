@@ -207,7 +207,16 @@ class MainWindow(QMainWindow):
         if release != KEEP:
             new_version = bump(spec.version, release)
             self.form.version.setText(new_version)
-            if not self.save():  # "Save as" dialog cancelled for a new config: build nothing
+            if self.config_path and self.config_path.is_file():
+                # Only the version line: the file keeps its comments, and other unsaved
+                # edits of the form are used for this build but not written.
+                try:
+                    config.set_version(self.config_path, new_version)
+                except (ConfigError, OSError) as e:
+                    self.form.version.setText(spec.version)
+                    QMessageBox.critical(self, "Version non enregistrée", str(e))
+                    return
+            elif not self.save():  # "Save as" dialog cancelled for a new config: build nothing
                 self.form.version.setText(spec.version)
                 return
             self.statusBar().showMessage(f"Version {spec.version} → {new_version}, enregistrée dans {self.config_path}", 8000)

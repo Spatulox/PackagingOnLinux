@@ -342,3 +342,28 @@ def to_toml(spec: AppSpec, base_dir: Path) -> str:
 def save(spec: AppSpec, path: Path) -> None:
     path = Path(path)
     path.write_text(to_toml(spec, path.resolve().parent), encoding="utf-8")
+
+
+def set_version(path: Path, version: str) -> None:
+    """Change only the [app] version line of an existing config, keeping its comments and
+    layout (save() rewrites the whole file from the spec)."""
+    path = Path(path)
+    text = path.read_text(encoding="utf-8")
+    lines = text.splitlines(keepends=True)
+    section = None
+    for i, line in enumerate(lines):
+        header = re.match(r"\s*\[([^\[\]]+)\]\s*(#.*)?$", line)
+        if header:
+            section = header.group(1).strip()
+            continue
+        m = re.match(r"(\s*version\s*=\s*)(\"[^\"]*\"|'[^']*')(.*)$", line, re.DOTALL)
+        if section == "app" and m:
+            lines[i] = f"{m.group(1)}{_toml_value(version)}{m.group(3)}"
+            break
+    else:
+        raise ConfigError(f"{path}: no version line in [app] to update")
+    new_text = "".join(lines)
+    data = tomllib.loads(new_text)
+    if data.get("app", {}).get("version") != version:  # never write a file that reads back wrong
+        raise ConfigError(f"{path}: could not update the version")
+    path.write_text(new_text, encoding="utf-8")

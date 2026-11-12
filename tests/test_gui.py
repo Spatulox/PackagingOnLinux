@@ -213,6 +213,18 @@ def test_build_fix_release_bumps_and_saves(window, qtbot, hello_project, release
     assert "✔ deb : hello_1.2.4_all.deb" in window.log.toPlainText()
 
 
+def test_bump_only_changes_the_version_line(window, qtbot, hello_project, release):
+    """Comments survive, and unsaved form edits are built but not written."""
+    hello_project.write_text("# my comment\n" + hello_project.read_text())
+    before = hello_project.read_text()
+    window.form.summary.setText("Unsaved summary")
+    release["value"] = "minor"
+    window.start_build()
+    qtbot.waitUntil(lambda: window.worker is None, timeout=30000)
+    assert hello_project.read_text() == before.replace('version = "1.2.3"', 'version = "1.3.0"')
+    assert "✔ deb : hello_1.3.0_all.deb" in window.log.toPlainText()
+
+
 def test_cancelled_release_dialog_builds_nothing(window, hello_project, release):
     release["value"] = None
     before = hello_project.read_text()

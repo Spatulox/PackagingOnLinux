@@ -96,3 +96,26 @@ def test_detect_arch(tmp_path: Path, machine, expected):
 
 def test_detect_arch_script_is_independent(hello_spec):
     assert hello_spec.linux_arch == ("all", "noarch")
+
+
+def test_set_version_keeps_comments_and_layout(tmp_path):
+    path = tmp_path / "packaging.toml"
+    original = (
+        "# header comment\n"
+        "[app]\n"
+        "id = \"org.example.Hello\"  # inline\n"
+        "version = \"1.2.3\"   # bumped by the GUI\n"
+        "description = \"\"\"\nversion = \"9.9.9\" inside a string\n\"\"\"\n"
+        "\n[linux]\n# keep me\nversion = \"not the app\"\n"
+    )
+    path.write_text(original)
+    config.set_version(path, "1.2.4")
+    assert path.read_text() == original.replace('version = "1.2.3"', 'version = "1.2.4"')
+
+
+def test_set_version_without_version_line_writes_nothing(tmp_path):
+    path = tmp_path / "packaging.toml"
+    path.write_text("[app]\nid = \"org.example.Hello\"\n")
+    with pytest.raises(ConfigError):
+        config.set_version(path, "1.0.1")
+    assert path.read_text() == "[app]\nid = \"org.example.Hello\"\n"
