@@ -110,6 +110,31 @@ def test_license_choice_or_custom(window):
     assert window.current_spec().license == "LicenseRef-MyCompany"
 
 
+def test_several_categories_roundtrip(window, hello_project):
+    cats = window.form.categories
+    assert window.current_spec().categories == ["Utility"]
+    cats.checkboxes["Development"].setChecked(True)
+    cats.extra.setText("TextEditor; IDE")
+    assert window.current_spec().categories == ["Utility", "Development", "TextEditor", "IDE"]
+    assert window.save()
+    assert config.load(hello_project).categories == ["Utility", "Development", "TextEditor", "IDE"]
+    cats.checkboxes["Utility"].setChecked(False)
+    cats.checkboxes["Development"].setChecked(False)
+    cats.extra.setText("")
+    assert window.current_spec().categories == ["Utility"]  # none chosen: the default
+
+
+def test_categories_keep_loaded_order(qtbot):
+    """The first category picks the deb Section: a loaded order is not re-sorted."""
+    from packagingonlinux.gui.form import CategoriesField
+    field = CategoriesField()
+    qtbot.addWidget(field)
+    field.set_categories(["Network", "Viewer", "Development"])
+    assert field.checkboxes["Network"].isChecked() and field.checkboxes["Development"].isChecked()
+    assert field.extra.text() == "Viewer"
+    assert field.categories() == ["Network", "Viewer", "Development"]
+
+
 def test_windows_tab_roundtrip(window, hello_project):
     exe = make_pe(hello_project.parent / "hello.exe", 0xAA64)
     window.form.windows.binary.set_path(exe)

@@ -6,7 +6,7 @@ from packagingonlinux.linux import elf
 from packagingonlinux.windows import pe
 from packagingonlinux.config import COMMON_LICENSES, MAIN_CATEGORIES, AppSpec, Target, suggest_id
 from packagingonlinux.gui.qt import (
-    QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+    QCheckBox, QComboBox, QFileDialog, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
     QPixmap, QPlainTextEdit, QPushButton, Qt, QTabWidget, QVBoxLayout, QWidget, Signal,
 )
 
@@ -47,6 +47,46 @@ class PathField(QWidget):
 
 def _split(text: str) -> list[str]:
     return [p.strip() for p in text.split(",") if p.strip()]
+
+
+class CategoriesField(QWidget):
+    """Menu categories: one checkbox per freedesktop main category, plus a line for
+    additional ones (e.g. TextEditor, Viewer). The order of a loaded config is kept, since
+    the first category picks the deb Section."""
+
+    COLUMNS = 4
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.checkboxes: dict[str, QCheckBox] = {}
+        grid = QGridLayout(self)
+        grid.setContentsMargins(0, 0, 0, 0)
+        for i, name in enumerate(MAIN_CATEGORIES):
+            box = QCheckBox(name)
+            self.checkboxes[name] = box
+            grid.addWidget(box, i // self.COLUMNS, i % self.COLUMNS)
+        self.extra = QLineEdit()
+        self.extra.setPlaceholderText("Autres catégories (optionnel), ex. TextEditor, Viewer")
+        self.extra.setToolTip(
+            "Catégories additionnelles de la spécification freedesktop, séparées par des virgules :\n"
+            "https://specifications.freedesktop.org/menu-spec/latest/additional-category-registry.html")
+        grid.addWidget(self.extra, len(MAIN_CATEGORIES) // self.COLUMNS + 1, 0, 1, self.COLUMNS)
+        self._order: list[str] = []
+        self.set_categories(["Utility"])
+
+    def set_categories(self, categories: list[str]) -> None:
+        self._order = list(categories)
+        for name, box in self.checkboxes.items():
+            box.setChecked(name in categories)
+        self.extra.setText(", ".join(c for c in categories if c not in self.checkboxes))
+
+    def categories(self) -> list[str]:
+        """Checked and typed categories, in the loaded order then the order shown; Utility
+        if there are none."""
+        chosen = [n for n, b in self.checkboxes.items() if b.isChecked()]
+        chosen += [c for c in _split(self.extra.text().replace(";", ",")) if c not in chosen]
+        ordered = [c for c in self._order if c in chosen] + [c for c in chosen if c not in self._order]
+        return ordered or ["Utility"]
 
 
 class TargetWidget(QWidget):
@@ -200,10 +240,7 @@ class AppForm(QWidget):
             "(liste complète : https://spdx.org/licenses/), ex. GPL-3.0-only OR MIT"
         )
         self.homepage = QLineEdit()
-        self.category = QComboBox()
-        self.category.addItems(MAIN_CATEGORIES)
-        self.category.setEditable(True)
-        self.category.setCurrentText("Utility")
+        self.categories = CategoriesField()
 
         meta = QGroupBox("Application")
         f = QFormLayout(meta)
@@ -215,7 +252,7 @@ class AppForm(QWidget):
         f.addRow("Mainteneur", self.maintainer)
         f.addRow("Licence", self.license)
         f.addRow("Site web", self.homepage)
-        f.addRow("Catégorie", self.category)
+        f.addRow("Catégories", self.categories)
 
         # --- files, per platform
         self.linux = TargetWidget("linux")
@@ -290,7 +327,7 @@ class AppForm(QWidget):
         self.maintainer.setText(spec.maintainer)
         self.license.setCurrentText(spec.license)
         self.homepage.setText(spec.homepage)
-        self.category.setCurrentText(spec.categories[0] if spec.categories else "Utility")
+        self.categories.set_categories(spec.categories or ["Utility"])
         self.linux.set_target(spec.linux)
         self.windows.set_target(spec.windows)
         self.deps_auto.setChecked(spec.deps_auto)
@@ -299,7 +336,6 @@ class AppForm(QWidget):
         self._id_auto = not spec.id
 
     def to_spec(self, base_dir: Path, formats: list[str], output_dir: Path) -> AppSpec:
-        category = self.category.currentText().strip()
         return AppSpec(
             id=self.app_id.text().strip(),
             name=self.name.text().strip(),
@@ -309,7 +345,7 @@ class AppForm(QWidget):
             license=self.license.currentText().strip() or "LicenseRef-proprietary",
             maintainer=self.maintainer.text().strip(),
             homepage=self.homepage.text().strip(),
-            categories=[category] if category else ["Utility"],
+            categories=self.categories.categories(),
             linux=self.linux.target(),
             windows=self.windows.target(),
             deps_auto=self.deps_auto.isChecked(),
