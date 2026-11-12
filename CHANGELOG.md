@@ -3,6 +3,11 @@
 All notable changes to PackagingOnLinux are documented here.
 A release is published only for a version that has a section in this file.
 
+## [Unreleased]
+
+### Added
+- AppImage format (`appimage`).
+
 ## [0.1.3]
 
 ### BREAKING CHANGE FOR THE TOML FILE

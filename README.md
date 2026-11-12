@@ -7,7 +7,8 @@ Package any prebuilt application into several Linux distribution formats, and in
 | deb | done |
 | rpm | done |
 | tar.gz | done |
-| AppImage, Flatpak, Snap | planned |
+| AppImage | done |
+| Flatpak, Snap | planned |
 | Windows installer (`setup.exe`, NSIS) | done |
 | Windows portable `.zip` | done |
 
@@ -55,6 +56,8 @@ packagingonlinux build -c packaging.toml [-f deb,rpm] [-o dist]
 ```
 
 A failing format does not stop the others; errors are listed at the end.
+
+The `appimage` format needs `mksquashfs` (`squashfs-tools`). The first build downloads the AppImage runtime (a pinned release, checked against its sha256) into `~/.cache/packagingonlinux/`; offline, download it yourself and set `PACKAGINGONLINUX_APPIMAGE_RUNTIME` to its path. The app's libraries are not bundled: like the tar.gz, the AppImage uses those of the user's system.
 
 ## `packaging.toml`
 
