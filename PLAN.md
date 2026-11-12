@@ -11,7 +11,7 @@
 - [ ] 7. Dogfooding : PackagingOnLinux se package lui-même
 - [x] 8. Nettoyage : suppression de `scripts/` et `purge_build_install_myges.sh`, mise à jour du README
 - [ ] 9. Langue de l'interface : anglais et français, au choix dans les paramètres
-- [ ] 10. Windows : installeur `.exe` (NSIS) et archive portable `.zip`, construits depuis Linux
+- [x] 10. Windows : installeur `.exe` (NSIS) et archive portable `.zip`, construits depuis Linux
 
 ## Contexte
 
@@ -35,13 +35,16 @@ packagingonlinux/
   __main__.py, cli.py        # sous-commandes: init, doctor, check, build, gui
   config.py                  # lecture + validation de packaging.toml -> AppSpec (dataclass)
   elf.py                     # détection de l'architecture depuis l'en-tête ELF
+  pe.py                      # idem pour un .exe Windows (en-tête PE)
   staging.py                 # arbre FHS commun (usr/bin, .desktop, icônes hicolor, metainfo)
+  winstage.py, ico.py        # arbre Windows (dossier de l'app à plat) + icône .ico en Python pur
   deps.py                    # détection des dépendances (reprend l'ancien scripts/list_dep.py)
   runner.py                  # exécution des commandes avec journal en direct
   core.py                    # API commune build(spec, formats, log) utilisée par la CLI ET la GUI
   backends/
     base.py                  # interface: required_tools, build(ctx) -> list[Path]
     deb.py  rpm.py  tarball.py
+    winzip.py  nsis.py       # Windows : zip portable, installeur setup.exe
     appimage.py  flatpak.py  snap.py      # à venir
   gui/
     app.py                   # QMainWindow, point d'entrée `packagingonlinux-gui`
@@ -93,12 +96,14 @@ license = "GPL-3.0-only"
 maintainer = "Spatulox"
 categories = ["Education"]
 
-[files]
+[linux]
+command = "wails build"          # optionnel, reçoit $APP_VERSION, $APP_NAME, $APP_ID, $APP_PLATFORM
 binary = "MyGesClient"           # ou `dir = "dist/"` + `exec = "bin/app"` pour une app multi-fichiers
 icon = "icons/appicon.png"
 
-[build]                          # optionnel, reçoit $APP_VERSION, $APP_NAME, $APP_ID
-command = "wails build"
+[windows]                        # optionnel, mêmes clés
+command = "wails build -platform windows/amd64"
+binary = "build/bin/MyGesClient.exe"
 
 [deps]                           # optionnel, sinon auto-détection
 auto = true
@@ -120,6 +125,8 @@ dir = "builds"
 | AppImage | `appimagetool` (téléchargé dans un cache, à version fixe) | AppDir généré depuis le staging. Les libs GTK/WebKit ne sont pas embarquées par défaut (option `linuxdeploy` plus tard) | à faire |
 | Flatpak | `flatpak-builder` + `flatpak build-bundle` | manifest généré, sortie `.flatpak`. En CI : conteneur `ghcr.io/flathub-infra/flatpak-github-actions`. Nécessite une icône carrée | à faire |
 | Snap | `snapcraft --destructive-mode` dans un conteneur Ubuntu | confinement `strict` + extension `gnome` si GTK, sinon `classic` | à faire |
+| zip (Windows) | Python `zipfile` | version portable, sans installation | fait |
+| nsis (Windows) | `makensis` | installeur `setup.exe` par utilisateur, sans droits admin | fait |
 
 L'architecture est détectée automatiquement à partir de l'en-tête ELF (amd64/x86_64, arm64/aarch64, etc.) ; un script est marqué `all`/`noarch`.
 
@@ -147,23 +154,27 @@ L'architecture est détectée automatiquement à partir de l'en-tête ELF (amd64
 
 ## Windows (.exe)
 
-PackagingOnLinux package des binaires **déjà compilés**. Un binaire Linux ne tourne pas sous Windows : il faut donc un binaire Windows en entrée. Beaucoup d'outils savent le produire depuis Linux, par exemple `wails build -platform windows/amd64`, `GOOS=windows go build`, `cargo build --target x86_64-pc-windows-gnu` ou PyInstaller sous Wine. Cette compilation se fait via la commande `[build]` existante, et l'outil ne gère pas lui-même les compilateurs.
+PackagingOnLinux package des binaires **déjà compilés**. Un binaire Linux ne tourne pas sous Windows : il faut donc un binaire Windows en entrée. Beaucoup d'outils savent le produire depuis Linux, par exemple `wails build -platform windows/amd64`, `GOOS=windows go build`, `cargo build --target x86_64-pc-windows-gnu` ou PyInstaller sous Wine. Cette compilation se fait via la commande de la section `[windows]`, et l'outil ne gère pas lui-même les compilateurs.
 
-- **Config** : nouvelle section optionnelle, indépendante des fichiers Linux :
+- **Config par plateforme** : `[linux]` et `[windows]` ont les mêmes clés (`command`, `binary` ou `dir` + `exec`, `icon`). Une commande n'est lancée que si un format de sa plateforme est demandé : `-f deb` ne lance pas la compilation Windows. Les anciennes sections `[files]` et `[build]` sont lues comme `[linux]`.
   ```toml
   [windows]
-  binary = "build/bin/MyGesClient.exe"     # ou dir = "dist-win/" + exec = "app.exe"
-  icon = "build/windows/icon.ico"          # optionnel ; sinon converti depuis l'icône PNG
-  build_command = "wails build -platform windows/amd64"   # optionnel
+  command = "wails build -platform windows/amd64"   # optionnelle
+  binary = "build/bin/MyGesClient.exe"              # ou dir = "dist-win/" + exec = "app.exe"
+  icon = "build/windows/icon.ico"                   # optionnelle : .ico ou PNG carré ≤ 256 px, sinon l'icône Linux
   ```
-- **Backend `exe`** : génère un script NSIS, compilé par `makensis`, qui est disponible sous Linux (`apt install nsis`, `dnf install mingw32-nsis`) et donc en CI Linux. Le résultat est `<nom>-<version>-setup.exe`, avec :
-  - installation dans `Program Files`, raccourcis dans le menu Démarrer et sur le bureau (optionnel) ;
-  - désinstalleur, et entrée dans « Ajouter ou supprimer des programmes » (nom, version, éditeur, site web, icône) ;
-  - architecture détectée depuis l'en-tête PE (x86, x64, arm64), comme `elf.py` le fait pour Linux.
-- **Backend `zip`** : version portable sans installation (l'exécutable et ses fichiers dans un `.zip`), via le module Python `zipfile`. Aucun outil requis.
-- **Signature de code (optionnelle, plus tard)** : `osslsigncode` avec un certificat fourni par variable d'environnement en CI. Sans signature, Windows SmartScreen affiche un avertissement au premier lancement : à documenter.
-- **GUI** : un onglet ou un groupe « Windows » (binaire .exe, icône), affiché seulement quand un format Windows est coché.
-- **Vérification** : tests unitaires sur le script NSIS généré et la détection PE. En CI, on construit l'installeur de l'app `hello`, puis on l'installe en mode silencieux (`setup.exe /S`) sur un runner `windows-latest` et on vérifie que l'exécutable et le désinstalleur sont présents.
+- **Architecture** : détectée depuis l'en-tête PE (x86, x64, arm64), comme `elf.py` le fait pour Linux.
+- **Icône** : un `.ico` est copié tel quel ; un PNG carré de 256 px au plus est emballé dans un en-tête ICO, en Python pur. Sinon, un avertissement est émis et aucune icône personnalisée n'est utilisée.
+- **Backend `zip`** : `<Nom>-<version>-windows-<arch>.zip`, l'application dans un dossier `<Nom>/`, via le module Python `zipfile`. Aucun outil requis.
+- **Backend `nsis`** : génère un script NSIS, compilé par `makensis`, disponible sous Linux (`apt install nsis`, `dnf install mingw32-nsis`) et donc en CI Linux. Le résultat est `<Nom>-<version>-windows-<arch>-setup.exe` :
+  - installation **par utilisateur, sans droits admin** (pas de fenêtre UAC), dans `%LOCALAPPDATA%\Programs\<Nom>`, comme VS Code ou Discord. Tout le registre est dans `HKCU` ;
+  - raccourci dans le menu Démarrer, case « raccourci sur le bureau » et « Lancer » en fin d'installation, pages en anglais et en français ;
+  - entrée dans « Paramètres → Applications » (nom, version, éditeur, site web, icône, taille), avec désinstallation silencieuse possible (`/S`) ;
+  - le désinstalleur supprime exactement les fichiers installés, puis les dossiers vides (jamais de `RMDir /r`) ;
+  - refuse de s'installer sur un Windows qui ne peut pas faire tourner l'architecture de l'app.
+- **Signature de code (plus tard)** : `osslsigncode` avec un certificat fourni par variable d'environnement en CI. Sans signature, Windows SmartScreen affiche un avertissement au premier lancement (documenté dans le README).
+- **GUI** : onglets « Linux » et « Windows » dans « Fichiers à empaqueter » ; les cases des formats sont groupées par plateforme.
+- **Vérification** : tests unitaires du script NSIS généré, de la détection PE, de l'icône et du zip ; compilation réelle avec `makensis` quand il est installé. Reste à faire en CI : installer en silencieux (`setup.exe /S`) l'installeur de l'app `hello` sur un runner `windows-latest` et vérifier que l'exécutable et le désinstalleur sont présents.
 - **Hors périmètre** : MSI (WiX ne fonctionne que sous Windows) et MSIX/Microsoft Store.
 
 ## Vérification
