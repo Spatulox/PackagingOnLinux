@@ -54,6 +54,7 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
+    print(f"PackagingOnLinux {__version__}")
     for status in core.doctor():
         if status.ok:
             print(f"  ok       {status.platform:8} {status.name:9} {status.label}")

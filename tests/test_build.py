@@ -121,3 +121,9 @@ def test_missing_target_is_reported_per_format(hello_spec):
     hello_spec.linux = None
     result = core.build(hello_spec, ["tarball"], log=lambda _: None)
     assert "no [linux] section" in result.errors["tarball"]
+
+
+def test_doctor_prints_version(capsys):
+    from packagingonlinux import __version__, cli
+    assert cli.main(["doctor"]) == 0
+    assert capsys.readouterr().out.splitlines()[0] == f"PackagingOnLinux {__version__}"
