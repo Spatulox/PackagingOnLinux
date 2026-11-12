@@ -13,7 +13,16 @@ from packagingonlinux.gui import app  # noqa: E402
 from packagingonlinux.gui.app import MainWindow  # noqa: E402
 from packagingonlinux.gui.qt import QMessageBox, QSettings, QToolButton  # noqa: E402
 from packagingonlinux.gui.recent import MAX_RECENT, RecentFiles  # noqa: E402
+from packagingonlinux.gui.release import KEEP, ReleaseDialog  # noqa: E402
 from tests.conftest import make_pe  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def release(monkeypatch):
+    """Answer the modal release dialog (a real one would block the test). Default: keep the version."""
+    answer = {"value": KEEP}
+    monkeypatch.setattr(app, "ask_release", lambda parent, version: answer["value"])
+    return answer
 
 
 @pytest.fixture(autouse=True)
@@ -184,3 +193,64 @@ def test_app_id_matches_desktop_file(qapp):
     finally:
         qapp.setApplicationName(name)
         qapp.setDesktopFileName(desktop)
+
+
+def test_build_keep_version_does_not_touch_config(window, qtbot, hello_project):
+    before = hello_project.read_text()
+    window.start_build()
+    qtbot.waitUntil(lambda: window.worker is None, timeout=30000)
+    assert hello_project.read_text() == before
+    assert "✔ deb : hello_1.2.3_all.deb" in window.log.toPlainText()
+
+
+def test_build_fix_release_bumps_and_saves(window, qtbot, hello_project, release, dialogs):
+    release["value"] = "fix"
+    window.start_build()
+    qtbot.waitUntil(lambda: window.worker is None, timeout=30000)
+    assert dialogs == []
+    assert window.form.version.text() == "1.2.4"
+    assert config.load(hello_project).version == "1.2.4"
+    assert "✔ deb : hello_1.2.4_all.deb" in window.log.toPlainText()
+
+
+def test_cancelled_release_dialog_builds_nothing(window, hello_project, release):
+    release["value"] = None
+    before = hello_project.read_text()
+    window.start_build()
+    assert window.worker is None
+    assert window.log.toPlainText() == ""
+    assert hello_project.read_text() == before
+
+
+def test_cancelled_save_as_restores_version(window, monkeypatch, release):
+    release["value"] = "major"
+    window.config_path = None  # as if the form had never been saved
+    monkeypatch.setattr(app.QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: ("", "")))
+    window.start_build()
+    assert window.worker is None
+    assert window.form.version.text() == "1.2.3"
+
+
+def test_release_dialog_choices(qtbot):
+    dialog = ReleaseDialog("1.2.3")
+    qtbot.addWidget(dialog)
+    assert dialog.choice() == "fix"
+    assert dialog.buttons["fix"].text().endswith("1.2.3 → 1.2.4")
+    assert dialog.buttons["minor"].text().endswith("1.2.3 → 1.3.0")
+    assert dialog.buttons["major"].text().endswith("1.2.3 → 2.0.0")
+    dialog.buttons[KEEP].setChecked(True)
+    assert dialog.choice() == KEEP
+
+
+@pytest.mark.parametrize("accept,expected", [(True, "minor"), (False, None)])
+def test_ask_release_real_dialog(qtbot, accept, expected):
+    from packagingonlinux.gui import release as release_module
+    from packagingonlinux.gui.qt import QApplication, QTimer
+
+    def answer():
+        dialog = QApplication.activeModalWidget()
+        dialog.buttons["minor"].setChecked(True)
+        dialog.accept() if accept else dialog.reject()
+
+    QTimer.singleShot(0, answer)
+    assert release_module.ask_release(None, "1.2.3") == expected

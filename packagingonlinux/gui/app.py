@@ -7,6 +7,7 @@ from pathlib import Path
 from packagingonlinux import __version__, config
 from packagingonlinux.core import BACKENDS
 from packagingonlinux.config import ConfigError
+from packagingonlinux.version import bump
 from packagingonlinux.gui.form import AppForm, PathField
 from packagingonlinux.gui.formats import FormatsPanel
 from packagingonlinux.gui.qt import (
@@ -15,6 +16,7 @@ from packagingonlinux.gui.qt import (
     Qt, QToolButton, QUrl, QVBoxLayout, QWidget,
 )
 from packagingonlinux.gui.recent import RecentFiles, default_settings
+from packagingonlinux.gui.release import KEEP, ask_release
 from packagingonlinux.gui.worker import BuildWorker
 
 TOML_FILTER = "Configuration PackagingOnLinux (packaging.toml *.toml)"
@@ -199,6 +201,17 @@ class MainWindow(QMainWindow):
         if problems:
             QMessageBox.warning(self, "Informations manquantes", "\n".join(f"• {p}" for p in problems))
             return
+        release = ask_release(self, spec.version)
+        if release is None:
+            return
+        if release != KEEP:
+            new_version = bump(spec.version, release)
+            self.form.version.setText(new_version)
+            if not self.save():  # "Save as" dialog cancelled for a new config: build nothing
+                self.form.version.setText(spec.version)
+                return
+            self.statusBar().showMessage(f"Version {spec.version} → {new_version}, enregistrée dans {self.config_path}", 8000)
+            spec = self.current_spec()
         self.log.clear()
         self.build_button.setEnabled(False)
         self.build_button.setText("Construction en cours…")

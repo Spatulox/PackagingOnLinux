@@ -39,6 +39,7 @@ packagingonlinux/            # le code de l'outil, rangé par plateforme
   backend.py                 # interface: platform, required_tools, build(ctx) -> list[Path]
   runner.py                  # exécution des commandes avec journal en direct
   png.py                     # lecture de la taille d'un PNG (icônes Linux et Windows)
+  version.py                 # incrément de version : fix (x.y.Z), minor (x.Y.0), major (X.0.0)
   linux/
     elf.py                   # détection de l'architecture depuis l'en-tête ELF
     deps.py                  # détection des dépendances (reprend l'ancien scripts/list_dep.py)
@@ -55,6 +56,7 @@ packagingonlinux/            # le code de l'outil, rangé par plateforme
     form.py                  # formulaire AppSpec (champs, sélecteurs de fichiers, aperçu de l'icône)
     formats.py               # cases à cocher des formats + état « outil dispo/manquant » (issu de doctor)
     recent.py                # fichiers récemment ouverts (QSettings), menu Fichier > Ouvrir un fichier récent
+    release.py               # popup avant construction : type de release (fix/minor/major/aucune)
     worker.py                # QThread qui lance core.build et diffuse les logs en direct
 ci/                                       # à venir
   github/action.yml          # action composite réutilisable
