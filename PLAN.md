@@ -9,13 +9,13 @@
 - [ ] 5. AppImage, puis Flatpak, puis Snap
 - [ ] 6. Construction en conteneur (`--container`)
 - [ ] 7. Dogfooding : PackagingOnLinux se package lui-même
-- [x] 8. Nettoyage : suppression de `scripts/` et `purge_build_install_myges.sh`, mise à jour du README
+- [x] 8. Nettoyage : suppression des anciens scripts bash (`scripts/` et le script de purge), mise à jour du README
 - [ ] 9. Langue de l'interface : anglais et français, au choix dans les paramètres
 - [x] 10. Windows : installeur `.exe` (NSIS) et archive portable `.zip`, construits depuis Linux
 
 ## Contexte
 
-Au départ, le repo contenait deux scripts bash (`scripts/deb.sh`, `scripts/rpm.sh`) codés en dur pour `MyGesClient`. Ils demandaient `sudo`, appelaient `sudo` dans le `postinst`, et posaient l'icône à un chemin non standard (`/usr/share/icons/<nom>/`). L'objectif : une seule interface où l'utilisateur décrit son logiciel une fois, choisit les formats (deb, rpm, AppImage, Flatpak, Snap…), et obtient les paquets. Ça doit tourner sur n'importe quelle distro et n'importe quel environnement de bureau, et surtout en CI GitHub/GitLab.
+Au départ, le repo contenait deux scripts bash (`scripts/deb.sh`, `scripts/rpm.sh`) codés en dur pour une seule application. Ils demandaient `sudo`, appelaient `sudo` dans le `postinst`, et posaient l'icône à un chemin non standard (`/usr/share/icons/<nom>/`). L'objectif : une seule interface où l'utilisateur décrit son logiciel une fois, choisit les formats (deb, rpm, AppImage, Flatpak, Snap…), et obtient les paquets. Ça doit tourner sur n'importe quelle distro et n'importe quel environnement de bureau, et surtout en CI GitHub/GitLab.
 
 **Périmètre** : l'entrée est un logiciel **déjà compilé** (un binaire ou un dossier d'install). Une commande `build` optionnelle dans la config permet de compiler les sources juste avant, mais l'outil ne gère pas lui-même les chaînes de compilation propres à chaque langage.
 
@@ -55,7 +55,7 @@ ci/                                       # à venir
   github/action.yml          # action composite réutilisable
   github/example-workflow.yml
   gitlab/packagingonlinux.gitlab-ci.yml   # template à inclure avec `include:`
-examples/mygesclient/packaging.toml
+packaging.toml               # PackagingOnLinux se package lui-même (config de référence)
 tests/                       # pytest + pytest-qt, app fixture "hello" (script shell + icône)
 ```
 
@@ -80,7 +80,7 @@ Principes clés :
 │ Dossier de sortie: [builds/]                              │
 │ [ Construire les paquets ]   [Ouvrir le dossier de sortie]│
 │ ┌ Journal ───────────────────────────────────────────┐   │
-│ │ [deb] OK builds/mygesclient_1.0.0_amd64.deb         │   │
+│ │ [deb] OK builds/myapp_1.0.0_amd64.deb               │   │
 │ └────────────────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -88,22 +88,22 @@ Principes clés :
 Exemple de `packaging.toml` :
 ```toml
 [app]
-id = "io.github.spatulox.MyGesClient"   # reverse-DNS, requis par Flatpak
-name = "MyGesClient"
+id = "io.github.vous.MyApp"     # reverse-DNS, requis par Flatpak
+name = "MyApp"
 version = "1.0.0"
-summary = "MyGes native desktop client"
+summary = "Une phrase qui décrit l'application"
 license = "GPL-3.0-only"
-maintainer = "Spatulox"
-categories = ["Education"]
+maintainer = "Vous"
+categories = ["Utility"]
 
 [linux]
 command = "wails build"          # optionnel, reçoit $APP_VERSION, $APP_NAME, $APP_ID, $APP_PLATFORM
-binary = "MyGesClient"           # ou `dir = "dist/"` + `exec = "bin/app"` pour une app multi-fichiers
-icon = "icons/appicon.png"
+binary = "build/bin/MyApp"       # ou `dir = "dist/"` + `exec = "bin/app"` pour une app multi-fichiers
+icon = "icons/myapp.png"
 
 [windows]                        # optionnel, mêmes clés
 command = "wails build -platform windows/amd64"
-binary = "build/bin/MyGesClient.exe"
+binary = "build/bin/MyApp.exe"
 
 [deps]                           # optionnel, sinon auto-détection
 auto = true
@@ -133,13 +133,13 @@ L'architecture est détectée automatiquement à partir de l'en-tête ELF (amd64
 ## Étapes de réalisation
 
 1. **Socle** : `config.py`, `staging.py`, `core.py`, `cli.py` (`init`, `doctor`, `check`, `build`), backend `tarball`, tests pytest.
-2. **deb + rpm** : port de `scripts/deb.sh` et `scripts/rpm.sh` en Python sans sudo, logique de `list_dep.py` reprise dans `deps.py`. `examples/mygesclient/packaging.toml` sert de référence.
+2. **deb + rpm** : port de `scripts/deb.sh` et `scripts/rpm.sh` en Python sans sudo, logique de `list_dep.py` reprise dans `deps.py`.
 3. **GUI Qt** : formulaire, ouverture et enregistrement du `packaging.toml`, cases des formats reliées à `doctor`, build dans un `QThread` avec logs en direct, bouton « Ouvrir le dossier de sortie ».
 4. **CI** : action GitHub composite et template GitLab. Un job par format (matrice), chacun dans son image dédiée ; les paquets sont publiés comme artefacts, et attachés à la release quand un tag est poussé.
 5. **AppImage**, puis **Flatpak**, puis **Snap** (du plus simple au plus contraignant en CI). Chaque nouveau backend apparaît automatiquement dans la GUI.
 6. **Option `--container`** (case à cocher dans la GUI) pour construire tous les formats localement depuis n'importe quelle distro.
 7. **Dogfooding** : PackagingOnLinux se package lui-même (AppImage et Flatpak de la GUI) via son propre `packaging.toml` et sa propre CI.
-8. **Nettoyage** : suppression de `scripts/` et `purge_build_install_myges.sh`, mise à jour du README et de `CLAUDE.md`.
+8. **Nettoyage** : suppression des anciens scripts bash (`scripts/` et le script de purge), mise à jour du README et de `CLAUDE.md`.
 9. **Langue de l'interface (EN / FR)** : voir la section dédiée plus bas.
 10. **Windows (.exe)** : voir la section dédiée plus bas.
 
@@ -160,7 +160,7 @@ PackagingOnLinux package des binaires **déjà compilés**. Un binaire Linux ne 
   ```toml
   [windows]
   command = "wails build -platform windows/amd64"   # optionnelle
-  binary = "build/bin/MyGesClient.exe"              # ou dir = "dist-win/" + exec = "app.exe"
+  binary = "build/bin/MyApp.exe"                    # ou dir = "dist-win/" + exec = "app.exe"
   icon = "build/windows/icon.ico"                   # optionnelle : .ico ou PNG carré ≤ 256 px, sinon l'icône Linux
   ```
 - **Architecture** : détectée depuis l'en-tête PE (x86, x64, arm64), comme `elf.py` le fait pour Linux.
@@ -188,10 +188,8 @@ PackagingOnLinux package des binaires **déjà compilés**. Un binaire Linux ne 
   - `flatpak install --user --bundle *.flatpak` puis `flatpak run` ;
   - `snap install --dangerous *.snap` (runner Ubuntu GitHub) ;
   - dans tous les cas : `desktop-file-validate` et `appstreamcli validate` sur les fichiers générés.
-- Non-régression MyGesClient : `python3 -m packagingonlinux build -c examples/mygesclient/packaging.toml --format deb`, puis installation et lancement.
+- Non-régression : `python3 -m packagingonlinux build -f deb` sur le `packaging.toml` racine (PackagingOnLinux lui-même), puis installation et lancement.
 
 ## Points connus
 
-- **MyGesClient et Fedora récent** : le binaire dépend de WebKitGTK 4.0, que Fedora ne fournit plus. Le `.rpm` se construit mais ne s'installe pas ; recompiler avec Wails `-tags webkit2_41` règle le problème.
-- **Icône MyGesClient (521×536)** : non carrée, elle est installée dans `/usr/share/pixmaps` avec un avertissement. Il faudra une icône carrée (ex. 512×512) pour Flatpak et Snap.
 - **Détection des dépendances deb** : ne fonctionne que si les bibliothèques de l'appli sont installées sur la machine qui construit ; sinon, les lister dans `[deps] deb`.

@@ -21,6 +21,5 @@ __pycache__/
 .pytest_cache/
 build/
 
-# Inputs and outputs (prebuilt binary, generated packages)
-/MyGesClient
+# Generated packages
 builds/

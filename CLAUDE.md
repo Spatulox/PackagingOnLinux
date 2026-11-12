@@ -31,7 +31,7 @@ Make one commit per feature or bug fix. Don't bundle unrelated changes into one 
 
 ## Architecture
 
-- `packaging.toml` is the exchange format between the GUI, the CLI and CI. `config.py` maps it to the `AppSpec` dataclass. Paths are resolved against the config file's directory on load and written back relative to it on save. `examples/mygesclient/packaging.toml` is the reference config.
+- `packaging.toml` is the exchange format between the GUI, the CLI and CI. `config.py` maps it to the `AppSpec` dataclass. Paths are resolved against the config file's directory on load and written back relative to it on save. The root `packaging.toml` (PackagingOnLinux packaging itself) is the reference config.
 - What to package is described per platform: `[linux]` and `[windows]` sections, each a `Target` (`command`, `binary` or `dir` + `exec`, `icon`), in `AppSpec.linux` / `AppSpec.windows` (`None` when absent). The old `[files]` + `[build]` layout is still read as `[linux]`.
 - `core.build()` is the only entry point for building, used by both the CLI and the GUI (via the `QThread` in `gui/worker.py`). For each platform that has a requested format, it runs that platform's `command`, validates its target, builds **one** staging tree for it (`staging.py` for Linux, `winstage.py` for Windows), then runs that platform's backends on it. A failing or unavailable backend, or a failing platform command, is recorded in `BuildResult.errors` and does not stop the others.
 - Backends (`backends/`) subclass `Backend`: `platform` (`linux` or `windows`) picks the target and staging tree, `required_tools` drives `doctor` and the GUI checkboxes, and `build(ctx)` copies `ctx.stage` (never modify it in place) and writes to `ctx.outdir`. To register a new one, add it to `BACKENDS` in `backends/__init__.py`; it then appears automatically in the CLI and GUI.
@@ -39,7 +39,3 @@ Make one commit per feature or bug fix. Don't bundle unrelated changes into one 
 - No root needed to build: deb uses `dpkg-deb --root-owner-group`, rpm uses a temporary `_topdir`. There are no maintainer scripts; dpkg/rpm triggers refresh the desktop and icon caches.
 - Windows: `pe.py` reads the architecture from the PE header (x86/x64/arm64), `ico.py` makes the `.ico` in pure Python (an .ico as is, or a square PNG ≤ 256 px wrapped in an ICO header). The `nsis` backend generates a per-user installer script (`%LOCALAPPDATA%\Programs`, HKCU only, no admin) compiled by `makensis`. makensis takes `File` source paths literally (`$` can't be escaped), so payload files get plain names and the real name goes in `/oname`.
 - Linux architecture is read from the ELF header (`elf.py`); scripts are `all`/`noarch`. Dependencies: deb uses `dpkg-shlibdeps`, falling back to ldd + `dpkg -S` (`deps.py`), which only works if the libraries are installed on the build machine. rpm relies on rpmbuild's AutoReq.
-
-## Known issue with the MyGesClient binary
-
-It links WebKitGTK 4.0, which current Fedora no longer ships, so its rpm builds correctly but won't install there. Rebuilding with Wails `-tags webkit2_41` fixes it. This is not a packaging bug.

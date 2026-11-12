@@ -115,7 +115,7 @@ class AppSpec:
     # ---- derived values -------------------------------------------------
     @property
     def package_name(self) -> str:
-        """Lowercase package name valid for deb/rpm/snap (e.g. "MyGesClient" -> "mygesclient")."""
+        """Lowercase package name valid for deb/rpm/snap (e.g. "MyApp" -> "myapp")."""
         name = re.sub(r"[^a-z0-9+.-]+", "-", self.name.lower()).strip("-.+")
         if len(name) < 2:
             raise ConfigError(f"cannot derive a package name from {self.name!r}")

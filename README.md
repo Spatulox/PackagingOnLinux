@@ -92,7 +92,7 @@ dir = "builds"
 
 A platform's `command` runs in the config's folder before packaging, only when a format of that platform is built (so `-f deb` never runs the Windows build). It receives `$APP_ID`, `$APP_NAME`, `$APP_VERSION` and `$APP_PLATFORM` (`linux` or `windows`). Older configs with `[files]` and `[build] command` are still read as `[linux]`.
 
-Examples: [`examples/mygesclient/packaging.toml`](examples/mygesclient/packaging.toml), and [`packaging.toml`](packaging.toml), which packages PackagingOnLinux itself.
+Example: [`packaging.toml`](packaging.toml), which packages PackagingOnLinux itself.
 
 Packages only use freedesktop standards (a `.desktop` file, a hicolor icon and AppStream metainfo), so the app appears in the menus of any desktop environment. Building never needs root.
 
