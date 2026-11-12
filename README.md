@@ -106,6 +106,8 @@ A platform's `command` runs in the config's folder before packaging, only when a
 
 Example: [`packaging.toml`](packaging.toml), which packages PackagingOnLinux itself.
 
+Every section and key, with its type and default, is described in the `packaging.toml(5)` man page ([`docs/man/packaging.toml.5`](docs/man/packaging.toml.5), `man -l docs/man/packaging.toml.5`).
+
 Packages only use freedesktop standards (a `.desktop` file, a hicolor icon and AppStream metainfo), so the app appears in the menus of any desktop environment. Building never needs root.
 
 ## Windows

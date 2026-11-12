@@ -146,7 +146,8 @@ def cmd_gui(args: argparse.Namespace) -> int:
 DESCRIPTION = """\
 Package a prebuilt application (a binary or an install folder, one per platform) into
 Linux and Windows formats, without root and from any distribution. The app is described
-once in a packaging.toml file, shared by this command, the graphical interface and CI."""
+once in a packaging.toml file (see packaging.toml(5)), shared by this command, the
+graphical interface and CI."""
 
 # (command line, what it does): shown by --help and in the man page.
 EXAMPLES = [

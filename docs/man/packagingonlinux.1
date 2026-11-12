@@ -8,7 +8,7 @@ packagingonlinux \- package a prebuilt application as deb, rpm, tarball, appimag
 \fBpackagingonlinux\fR \fB\-\-help\fR | \fB\-\-version\fR
 .SH DESCRIPTION
 .PP
-Package a prebuilt application (a binary or an install folder, one per platform) into Linux and Windows formats, without root and from any distribution. The app is described once in a packaging.toml file, shared by this command, the graphical interface and CI.
+Package a prebuilt application (a binary or an install folder, one per platform) into Linux and Windows formats, without root and from any distribution. The app is described once in a packaging.toml file (see packaging.toml(5)), shared by this command, the graphical interface and CI.
 .PP
 Every command also accepts \fB\-h\fR, \fB\-\-help\fR.
 .SH COMMANDS
@@ -132,3 +132,5 @@ Build only the deb and rpm packages, into dist/.
 .TP
 \fBpackagingonlinux gui app/packaging.toml\fR
 Edit a config in the graphical interface.
+.SH SEE ALSO
+.BR packaging.toml (5)

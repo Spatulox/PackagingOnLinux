@@ -114,6 +114,7 @@ def render() -> str:
     lines += [".SH EXAMPLES"]
     for cmd, what in cli.EXAMPLES:
         lines += [".TP", f"\\fB{esc(cmd)}\\fR", esc(what[:1].upper() + what[1:] + ".")]
+    lines += [".SH SEE ALSO", ".BR packaging.toml (5)"]
     return "\n".join(lines) + "\n"
 
 

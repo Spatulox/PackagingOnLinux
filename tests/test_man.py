@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import importlib.util
 import shutil
 import subprocess
@@ -7,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from packagingonlinux import cli
+from packagingonlinux import cli, config
 from packagingonlinux.core import BACKENDS
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -57,3 +58,24 @@ def test_help_lists_formats_examples_and_exit_status(capsys):
         assert f"\n  {name} " in out
     assert "packagingonlinux build -f deb,rpm -o dist" in out
     assert "exit status:" in out
+
+
+def _documented_keys(page: str, section: str) -> set[str]:
+    """The \\fBkey\\fR entries of a '.SH "[section] SECTION"' of packaging.toml(5)."""
+    start = page.index(f'.SH "[{section}] SECTION"\n')
+    end = page.find("\n.SH ", start + 1)
+    body = page[start:end if end != -1 else None]
+    return {line.split("\\fR")[0][3:] for line in body.splitlines() if line.startswith("\\fB")}
+
+
+def test_config_page_documents_every_section_and_key():
+    page = (MAN_DIR / "packaging.toml.5").read_text(encoding="utf-8")
+    target_keys = {f.name for f in dataclasses.fields(config.Target)}
+    assert target_keys <= _documented_keys(page, "linux")
+    for section in ("app", "windows", "deps", "output"):
+        assert f'.SH "[{section}] SECTION"' in page
+    spec = config.AppSpec(id="org.example.App", name="App", version="1", summary="s")
+    for section in config.OPTION_SECTIONS:  # per-format options: [flatpak]...
+        keys = set(vars(getattr(spec, section)))
+        missing = keys - _documented_keys(page, section)
+        assert not missing, f"[{section}] keys missing from docs/man/packaging.toml.5: {missing}"
