@@ -47,7 +47,7 @@ def test_form_save_roundtrip(window, hello_project, hello_spec):
     again = config.load(hello_project)
     assert again.summary == "Changed summary"
     assert again.deps_deb == ["libfoo1", "libbar2"]
-    assert again.binary == hello_spec.binary and again.icon == hello_spec.icon
+    assert again.linux == hello_spec.linux
 
 
 def test_id_is_suggested_from_name(qtbot):

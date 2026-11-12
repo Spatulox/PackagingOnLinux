@@ -13,9 +13,9 @@ def _quote(path: str) -> str:
 
 def spec_file(ctx: BuildContext) -> str:
     spec = ctx.spec
-    rpm_arch = spec.arch[1]
+    rpm_arch = spec.linux_arch[1]
     files = [_quote(f) for f in staging.installed_files(ctx.stage)]
-    if spec.dir:
+    if spec.linux.dir:
         libdir = ctx.stage / "usr/lib" / spec.package_name
         owned = [libdir] + [d for d in sorted(libdir.rglob("*")) if d.is_dir() and not d.is_symlink()]
         files = [f"%dir {_quote('/' + d.relative_to(ctx.stage).as_posix())}" for d in owned] + files
@@ -62,8 +62,8 @@ class RpmBackend(Backend):
         spec_path = topdir / "SPECS" / f"{spec.package_name}.spec"
         spec_path.write_text(spec_file(ctx), encoding="utf-8")
         cmd = ["rpmbuild", "-bb", "--define", f"_topdir {topdir}"]
-        if spec.arch[1] != "noarch":
-            cmd += ["--target", spec.arch[1]]
+        if spec.linux_arch[1] != "noarch":
+            cmd += ["--target", spec.linux_arch[1]]
         run(cmd + [str(spec_path)], ctx.log)
         results = []
         for rpm in (topdir / "RPMS").rglob("*.rpm"):

@@ -11,7 +11,7 @@ license = "GPL-3.0-only"
 maintainer = "Spatulox"
 categories = ["Education"]
 
-[files]
+[linux]
 binary = "../../MyGesClient"
 icon = "../../icons/appicon.png"
 

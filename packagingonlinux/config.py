@@ -5,11 +5,15 @@ it are resolved against the directory that contains the file.
 
 Schema:
     [app]     id, name, version, summary, description, license, maintainer, homepage, categories
-    [files]   binary | dir (+ exec), icon
-    [build]   command               (optional, run before packaging, with $APP_ID,
-                                     $APP_NAME and $APP_VERSION set)
-    [deps]    auto, deb, rpm        (optional)
+    [linux]   command, binary | dir (+ exec), icon
+    [windows] command, binary | dir (+ exec), icon      (optional, same keys)
+    [deps]    auto, deb, rpm        (optional, Linux only)
     [output]  formats, dir
+
+Each platform's `command` is optional and runs before packaging, only when a format of that
+platform is built, with $APP_ID, $APP_NAME, $APP_VERSION and $APP_PLATFORM set.
+
+The older layout ([files] + [build] command) is still read as [linux].
 """
 
 from __future__ import annotations
@@ -22,6 +26,8 @@ from pathlib import Path
 from packagingonlinux import elf
 
 CONFIG_NAME = "packaging.toml"
+
+PLATFORMS = ("linux", "windows")
 
 # Main categories from the freedesktop menu spec.
 MAIN_CATEGORIES = [
@@ -43,21 +49,62 @@ class ConfigError(ValueError):
 
 
 @dataclass
+class Target:
+    """What to package for one platform: a single executable or a directory, plus an icon,
+    and the optional command that produces them."""
+
+    binary: Path | None = None
+    dir: Path | None = None
+    exec: str = ""
+    icon: Path | None = None
+    command: str = ""
+
+    @property
+    def exec_name(self) -> str:
+        if self.exec:
+            return Path(self.exec).name
+        if self.binary:
+            return self.binary.name
+        raise ConfigError("'exec' is required when 'dir' is used")
+
+    @property
+    def main_executable(self) -> Path:
+        if self.binary:
+            return self.binary
+        assert self.dir is not None
+        return self.dir / self.exec
+
+    def validate(self, section: str, check_files: bool = True) -> list[str]:
+        problems = []
+        if bool(self.binary) == bool(self.dir):
+            problems.append(f"[{section}] set exactly one of 'binary' or 'dir'")
+        if self.dir and not self.exec:
+            problems.append(f"[{section}] 'exec' (path of the executable inside 'dir') is required with 'dir'")
+        if check_files:
+            if self.binary and not self.binary.is_file():
+                problems.append(f"binary not found: {self.binary}")
+            if self.dir and not self.dir.is_dir():
+                problems.append(f"directory not found: {self.dir}")
+            elif self.dir and self.exec and not (self.dir / self.exec).is_file():
+                problems.append(f"executable not found: {self.dir / self.exec}")
+            if self.icon and not self.icon.is_file():
+                problems.append(f"icon not found: {self.icon}")
+        return problems
+
+
+@dataclass
 class AppSpec:
     id: str
     name: str
     version: str
     summary: str
-    binary: Path | None = None
-    dir: Path | None = None
-    exec: str = ""
-    icon: Path | None = None
+    linux: Target | None = None
+    windows: Target | None = None
     description: str = ""
     license: str = "LicenseRef-proprietary"
     maintainer: str = ""
     homepage: str = ""
     categories: list[str] = field(default_factory=lambda: ["Utility"])
-    build_command: str = ""
     deps_auto: bool = True
     deps_deb: list[str] = field(default_factory=list)
     deps_rpm: list[str] = field(default_factory=list)
@@ -74,32 +121,28 @@ class AppSpec:
             raise ConfigError(f"cannot derive a package name from {self.name!r}")
         return name
 
-    @property
-    def exec_name(self) -> str:
-        if self.exec:
-            return Path(self.exec).name
-        if self.binary:
-            return self.binary.name
-        raise ConfigError("[files] needs 'exec' when 'dir' is used")
+    def target(self, platform: str) -> Target | None:
+        if platform not in PLATFORMS:
+            raise ValueError(f"unknown platform {platform!r}")
+        return getattr(self, platform)
 
     @property
-    def main_executable(self) -> Path:
-        if self.binary:
-            return self.binary
-        assert self.dir is not None
-        return self.dir / self.exec
-
-    @property
-    def arch(self) -> tuple[str, str]:
-        """(deb_arch, rpm_arch) detected from the main executable."""
-        return elf.detect_arch(self.main_executable)
+    def linux_arch(self) -> tuple[str, str]:
+        """(deb_arch, rpm_arch) detected from the Linux executable."""
+        if self.linux is None:
+            raise ConfigError("no [linux] section in the config")
+        return elf.detect_arch(self.linux.main_executable)
 
     @property
     def description_text(self) -> str:
         return self.description.strip() or self.summary
 
-    def validate(self, check_files: bool = True) -> list[str]:
-        """Return a list of human-readable problems (empty if valid)."""
+    def validate(self, check_files: bool = True, platforms: list[str] | tuple[str, ...] | None = None) -> list[str]:
+        """Return a list of human-readable problems (empty if valid).
+
+        `platforms` selects which targets are checked: None means every target the config
+        defines (at least one is required), an empty list means the metadata only.
+        """
         problems = []
         for attr in ("id", "name", "version", "summary"):
             if not getattr(self, attr).strip():
@@ -108,22 +151,21 @@ class AppSpec:
             problems.append(f"[app] id {self.id!r} must be reverse-DNS, e.g. org.example.MyApp")
         if self.version and not re.fullmatch(r"[0-9][A-Za-z0-9.+~]*", self.version):
             problems.append(f"[app] version {self.version!r} must start with a digit and contain no '-' or spaces")
-        if bool(self.binary) == bool(self.dir):
-            problems.append("[files] set exactly one of 'binary' or 'dir'")
-        if self.dir and not self.exec:
-            problems.append("[files] 'exec' (path of the executable inside 'dir') is required with 'dir'")
         if not self.formats:
             problems.append("[output] formats must list at least one format")
-        if check_files:
-            if self.binary and not self.binary.is_file():
-                problems.append(f"binary not found: {self.binary}")
-            if self.dir and not self.dir.is_dir():
-                problems.append(f"directory not found: {self.dir}")
-            elif self.dir and self.exec and not (self.dir / self.exec).is_file():
-                problems.append(f"executable not found: {self.dir / self.exec}")
-            if self.icon and not self.icon.is_file():
-                problems.append(f"icon not found: {self.icon}")
+        if platforms is None:
+            platforms = [p for p in PLATFORMS if self.target(p) is not None]
+            if not platforms:
+                problems.append("describe the app to package in a [linux] or [windows] section")
+        for platform in platforms:
+            problems += self.target_problems(platform, check_files)
         return problems
+
+    def target_problems(self, platform: str, check_files: bool = True) -> list[str]:
+        target = self.target(platform)
+        if target is None:
+            return [f"no [{platform}] section in the config: it is needed to build {platform} formats"]
+        return target.validate(platform, check_files)
 
 
 def suggest_id(name: str, maintainer: str = "") -> str:
@@ -152,16 +194,36 @@ def _str_list(table: dict, key: str, where: str) -> list[str]:
     return value
 
 
+def _target(base_dir: Path, table: dict, where: str) -> Target:
+    if not isinstance(table, dict):
+        raise ConfigError(f"[{where}] must be a table")
+    return Target(
+        binary=_path(base_dir, table.get("binary")),
+        dir=_path(base_dir, table.get("dir")),
+        exec=str(table.get("exec", "")),
+        icon=_path(base_dir, table.get("icon")),
+        command=str(table.get("command", "")),
+    )
+
+
 def from_dict(data: dict, base_dir: Path) -> AppSpec:
     app = data.get("app", {})
-    files = data.get("files", {})
-    build = data.get("build", {})
     deps = data.get("deps", {})
     output = data.get("output", {})
-    known = {"app", "files", "build", "deps", "output"}
+    known = {"app", "linux", "windows", "files", "build", "deps", "output"}
     unknown = set(data) - known
     if unknown:
         raise ConfigError(f"unknown section(s): {', '.join(sorted(unknown))}")
+
+    linux_table = data.get("linux")
+    legacy = {k for k in ("files", "build") if k in data}
+    if linux_table is not None and legacy:
+        raise ConfigError(f"[{'] and ['.join(sorted(legacy))}] are the old name of [linux]: keep only [linux]")
+    if linux_table is None and legacy:
+        # Old layout: [files] binary/dir/exec/icon + [build] command.
+        linux_table = {**data.get("files", {}), "command": data.get("build", {}).get("command", "")}
+    windows_table = data.get("windows")
+
     spec = AppSpec(
         id=str(app.get("id", "")),
         name=str(app.get("name", "")),
@@ -172,11 +234,8 @@ def from_dict(data: dict, base_dir: Path) -> AppSpec:
         maintainer=str(app.get("maintainer", "")),
         homepage=str(app.get("homepage", "")),
         categories=_str_list(app, "categories", "app") or ["Utility"],
-        binary=_path(base_dir, files.get("binary")),
-        dir=_path(base_dir, files.get("dir")),
-        exec=str(files.get("exec", "")),
-        icon=_path(base_dir, files.get("icon")),
-        build_command=str(build.get("command", "")),
+        linux=_target(base_dir, linux_table, "linux") if linux_table is not None else None,
+        windows=_target(base_dir, windows_table, "windows") if windows_table is not None else None,
         deps_auto=bool(deps.get("auto", True)),
         deps_deb=_str_list(deps, "deb", "deps"),
         deps_rpm=_str_list(deps, "rpm", "deps"),
@@ -229,6 +288,14 @@ def _rel(path: Path | None, base: Path) -> str:
             return str(path)
 
 
+def _target_table(target: Target, base_dir: Path) -> dict:
+    return {
+        "command": target.command,
+        "binary": _rel(target.binary, base_dir), "dir": _rel(target.dir, base_dir),
+        "exec": target.exec if target.dir else "", "icon": _rel(target.icon, base_dir),
+    }
+
+
 def to_toml(spec: AppSpec, base_dir: Path) -> str:
     sections: list[tuple[str, dict]] = [
         ("app", {
@@ -237,11 +304,12 @@ def to_toml(spec: AppSpec, base_dir: Path) -> str:
             "maintainer": spec.maintainer, "homepage": spec.homepage,
             "categories": spec.categories,
         }),
-        ("files", {
-            "binary": _rel(spec.binary, base_dir), "dir": _rel(spec.dir, base_dir),
-            "exec": spec.exec if spec.dir else "", "icon": _rel(spec.icon, base_dir),
-        }),
-        ("build", {"command": spec.build_command}),
+    ]
+    for platform in PLATFORMS:
+        target = spec.target(platform)
+        if target is not None:
+            sections.append((platform, _target_table(target, base_dir)))
+    sections += [
         ("deps", {"auto": spec.deps_auto, "deb": spec.deps_deb, "rpm": spec.deps_rpm}),
         ("output", {"formats": spec.formats, "dir": _rel(spec.output_dir, base_dir)}),
     ]
@@ -250,7 +318,7 @@ def to_toml(spec: AppSpec, base_dir: Path) -> str:
         entries = {k: v for k, v in table.items() if v not in ("", [], None) or isinstance(v, bool)}
         if name == "deps" and entries == {"auto": True}:
             continue
-        if not entries:
+        if not entries and name not in PLATFORMS:  # an empty [windows] still means "build for it"
             continue
         lines.append("")
         lines.append(f"[{name}]")

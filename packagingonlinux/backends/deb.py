@@ -36,13 +36,13 @@ class DebBackend(Backend):
 
     def build(self, ctx: BuildContext) -> list[Path]:
         spec = ctx.spec
-        deb_arch = spec.arch[0]
+        deb_arch = spec.linux_arch[0]
         root = ctx.workdir / "root"
         shutil.copytree(ctx.stage, root, symlinks=True)
 
         depends = list(spec.deps_deb)
         if spec.deps_auto:
-            app_files = [spec.binary] if spec.binary else [spec.dir]
+            app_files = [spec.linux.binary or spec.linux.dir]
             detected = deps.detect_deb([p for p in app_files if p])
             names = {d.split()[0] for d in depends}
             depends += [d for d in detected if d.split()[0] not in names]

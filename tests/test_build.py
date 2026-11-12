@@ -7,7 +7,7 @@ import tarfile
 
 import pytest
 
-from packagingonlinux import core, staging
+from packagingonlinux import config, core, staging
 from packagingonlinux.backends.base import BuildContext
 from packagingonlinux.backends.rpm import spec_file
 from tests.conftest import make_png
@@ -28,7 +28,7 @@ def test_stage_layout(hello_spec, tmp_path):
 
 
 def test_non_square_icon_goes_to_pixmaps(hello_spec, tmp_path):
-    make_png(hello_spec.icon, 50, 60)
+    make_png(hello_spec.linux.icon, 50, 60)
     warnings = staging.build_stage(hello_spec, tmp_path / "stage")
     assert (tmp_path / "stage/usr/share/pixmaps/org.example.Hello.png").exists()
     assert "square" in warnings[0]
@@ -37,9 +37,9 @@ def test_non_square_icon_goes_to_pixmaps(hello_spec, tmp_path):
 def test_directory_app_uses_symlink(hello_spec, tmp_path):
     appdir = tmp_path / "dist"
     (appdir / "bin").mkdir(parents=True)
-    shutil.copy2(hello_spec.binary, appdir / "bin/hello")
+    shutil.copy2(hello_spec.linux.binary, appdir / "bin/hello")
     (appdir / "data.txt").write_text("x")
-    hello_spec.binary, hello_spec.dir, hello_spec.exec = None, appdir, "bin/hello"
+    hello_spec.linux = config.Target(dir=appdir, exec="bin/hello", icon=hello_spec.linux.icon)
     root = tmp_path / "stage"
     staging.build_stage(hello_spec, root)
     link = root / "usr/bin/hello"
@@ -95,7 +95,28 @@ def test_missing_tool_is_reported_not_raised(hello_spec, monkeypatch):
 
 
 def test_build_command_gets_app_metadata(hello_spec):
-    hello_spec.build_command = 'echo "$APP_ID $APP_NAME $APP_VERSION" > meta.txt'
+    hello_spec.linux.command = 'echo "$APP_ID $APP_NAME $APP_VERSION $APP_PLATFORM" > meta.txt'
     result = core.build(hello_spec, ["tarball"], log=lambda _: None)
     assert result.ok
-    assert (hello_spec.base_dir / "meta.txt").read_text() == "org.example.Hello Hello 1.2.3\n"
+    assert (hello_spec.base_dir / "meta.txt").read_text() == "org.example.Hello Hello 1.2.3 linux\n"
+
+
+def test_build_command_runs_only_for_requested_platforms(hello_spec):
+    hello_spec.windows = config.Target(command="touch windows-ran")
+    hello_spec.linux.command = "touch linux-ran"
+    result = core.build(hello_spec, ["tarball"], log=lambda _: None)
+    assert result.ok, result.errors
+    assert (hello_spec.base_dir / "linux-ran").exists()
+    assert not (hello_spec.base_dir / "windows-ran").exists()
+
+
+def test_failing_build_command_only_fails_its_platform(hello_spec):
+    hello_spec.linux.command = "exit 3"
+    result = core.build(hello_spec, ["tarball"], log=lambda _: None)
+    assert "exit 3" in result.errors["tarball"] and not result.packages
+
+
+def test_missing_target_is_reported_per_format(hello_spec):
+    hello_spec.linux = None
+    result = core.build(hello_spec, ["tarball"], log=lambda _: None)
+    assert "no [linux] section" in result.errors["tarball"]

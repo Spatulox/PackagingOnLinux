@@ -6,10 +6,11 @@ import os
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 from packagingonlinux import staging
 from packagingonlinux.backends import BACKENDS, BuildContext
-from packagingonlinux.config import AppSpec, ConfigError
+from packagingonlinux.config import PLATFORMS, AppSpec, ConfigError
 from packagingonlinux.runner import CommandError, Log, run
 
 
@@ -40,59 +41,87 @@ def doctor() -> list[ToolStatus]:
     return [ToolStatus(b.name, b.label, b.missing_tools(), b.install_hint) for b in BACKENDS.values()]
 
 
-def build_env(spec: AppSpec) -> dict[str, str]:
-    """Environment of the [build] command: the caller's, plus the app metadata (e.g. to
-    stamp the version into the binary with "$APP_VERSION")."""
-    return {**os.environ, "APP_ID": spec.id, "APP_NAME": spec.name, "APP_VERSION": spec.version}
+def build_env(spec: AppSpec, platform: str) -> dict[str, str]:
+    """Environment of a platform's build command: the caller's, plus the app metadata (e.g.
+    to stamp the version into the binary with "$APP_VERSION")."""
+    return {**os.environ, "APP_ID": spec.id, "APP_NAME": spec.name, "APP_VERSION": spec.version,
+            "APP_PLATFORM": platform}
+
+
+# platform -> function(spec, stage_root) -> warnings, building that platform's staging tree
+STAGERS: dict[str, Callable[[AppSpec, Path], list[str]]] = {
+    "linux": staging.build_stage,
+}
+
+
+def _prepare(spec: AppSpec, platform: str, stage: Path, log: Log) -> list[str]:
+    """Run the platform's build command, validate its target and stage it. Returns warnings."""
+    target = spec.target(platform)
+    if target is not None and target.command:
+        log(f"== {platform} build command")
+        run(target.command, log, cwd=spec.base_dir, shell=True, env=build_env(spec, platform))
+    problems = spec.target_problems(platform)
+    if problems:
+        raise ConfigError("\n".join(problems))
+    if platform not in STAGERS:
+        raise ConfigError(f"{platform} packaging is not supported yet")
+    log(f"== {platform} staging")
+    return STAGERS[platform](spec, stage)
 
 
 def build(spec: AppSpec, formats: list[str] | None = None, log: Log = print) -> BuildResult:
-    """Run the optional build command, stage the app once, then run each requested backend.
+    """For each platform with a requested format: run its build command, stage its target
+    once, then run each of its backends.
 
-    A failing format does not stop the others; failures are reported in BuildResult.errors.
+    A failing format (or a failing platform build command) does not stop the others;
+    failures are reported in BuildResult.errors.
     """
     formats = formats or spec.formats
     unknown = [f for f in formats if f not in BACKENDS]
     if unknown:
         raise ConfigError(f"unknown format(s): {', '.join(unknown)} (available: {', '.join(BACKENDS)})")
-    result = BuildResult()
-
-    if spec.build_command:
-        log("== build command")
-        run(spec.build_command, log, cwd=spec.base_dir, shell=True, env=build_env(spec))
-
-    problems = spec.validate()
+    problems = spec.validate(platforms=())
     if problems:
         raise ConfigError("\n".join(problems))
+    result = BuildResult()
 
     spec.output_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="packagingonlinux-") as tmp:
-        stage = Path(tmp) / "stage"
-        log("== staging")
-        result.warnings += staging.build_stage(spec, stage)
-        for w in result.warnings:
-            log(f"warning: {w}")
-
-        for name in formats:
-            backend = BACKENDS[name]
-            log(f"== {name}")
-            missing = backend.missing_tools()
-            if missing:
-                msg = f"missing tool(s): {', '.join(missing)}. Install with: {backend.install_hint}"
-                result.errors[name] = msg
-                log(f"[{name}] SKIPPED: {msg}")
+        for platform in PLATFORMS:
+            names = [f for f in formats if BACKENDS[f].platform == platform]
+            if not names:
                 continue
-            workdir = Path(tmp) / name
-            workdir.mkdir()
-            ctx = BuildContext(spec, stage, workdir, spec.output_dir, lambda m, n=name: log(f"[{n}] {m}"))
+            stage = Path(tmp) / platform / "stage"
             try:
-                outputs = backend.build(ctx)
-            except (CommandError, OSError, ValueError) as e:
-                result.errors[name] = str(e)
-                log(f"[{name}] FAILED: {e}")
+                warnings = _prepare(spec, platform, stage, log)
+            except (ConfigError, CommandError, OSError, ValueError) as e:
+                for name in names:
+                    result.errors[name] = str(e)
+                    log(f"[{name}] FAILED: {e}")
                 continue
-            result.packages[name] = outputs
-            for p in outputs:
-                log(f"[{name}] OK {p}")
-    return result
+            for w in warnings:
+                log(f"warning: {w}")
+            result.warnings += warnings
 
+            for name in names:
+                backend = BACKENDS[name]
+                log(f"== {name}")
+                missing = backend.missing_tools()
+                if missing:
+                    msg = f"missing tool(s): {', '.join(missing)}. Install with: {backend.install_hint}"
+                    result.errors[name] = msg
+                    log(f"[{name}] SKIPPED: {msg}")
+                    continue
+                workdir = Path(tmp) / platform / name
+                workdir.mkdir(parents=True)
+                ctx = BuildContext(spec, stage, workdir, spec.output_dir, lambda m, n=name: log(f"[{n}] {m}"))
+                try:
+                    outputs = backend.build(ctx)
+                except (CommandError, OSError, ValueError) as e:
+                    result.errors[name] = str(e)
+                    log(f"[{name}] FAILED: {e}")
+                    continue
+                result.packages[name] = outputs
+                for p in outputs:
+                    log(f"[{name}] OK {p}")
+    return result

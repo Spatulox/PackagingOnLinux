@@ -12,7 +12,7 @@ class TarballBackend(Backend):
 
     def build(self, ctx: BuildContext) -> list[Path]:
         spec = ctx.spec
-        out = ctx.outdir / f"{spec.package_name}-{spec.version}-{spec.arch[1]}.tar.gz"
+        out = ctx.outdir / f"{spec.package_name}-{spec.version}-{spec.linux_arch[1]}.tar.gz"
 
         def root_owned(info: tarfile.TarInfo) -> tarfile.TarInfo:
             info.uid = info.gid = 0

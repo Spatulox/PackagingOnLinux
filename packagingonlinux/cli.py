@@ -37,8 +37,10 @@ def cmd_init(args: argparse.Namespace) -> int:
         maintainer=maintainer,
         license=_ask("License (SPDX)", "LicenseRef-proprietary"),
         homepage=_ask("Homepage URL"),
-        binary=base / binary if binary else None,
-        icon=(base / icon) if (icon := _ask("Icon file (PNG or SVG, optional)")) else None,
+        linux=config.Target(
+            binary=base / binary if binary else None,
+            icon=(base / icon) if (icon := _ask("Icon file (PNG or SVG, optional)")) else None,
+        ),
         categories=[_ask(f"Category ({', '.join(config.MAIN_CATEGORIES)})", "Utility")],
         formats=[f.strip() for f in _ask("Formats", "deb,rpm").split(",") if f.strip()],
     )
@@ -66,6 +68,9 @@ def cmd_check(args: argparse.Namespace) -> int:
         print(f"error: {p}")
     if problems:
         return 1
+    if spec.linux is None:
+        print(f"{spec.name} {spec.version}: no [linux] section, nothing else to check")
+        return 0
     with tempfile.TemporaryDirectory() as tmp:
         stage = Path(tmp)
         for w in staging.build_stage(spec, stage):
@@ -90,7 +95,8 @@ def cmd_check(args: argparse.Namespace) -> int:
             if output:
                 print("  " + output.replace("\n", "\n  "))
             failed |= bad
-    print(f"{spec.name} {spec.version} ({spec.arch[0]}/{spec.arch[1]}) -> {', '.join(spec.formats)}")
+    arch = spec.linux_arch
+    print(f"{spec.name} {spec.version} (linux {arch[0]}/{arch[1]}) -> {', '.join(spec.formats)}")
     return 1 if failed else 0
 
 

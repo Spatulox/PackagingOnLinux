@@ -10,8 +10,9 @@ from packagingonlinux.config import ConfigError
 
 def test_load_resolves_paths_relative_to_config(hello_spec, hello_project):
     base = hello_project.parent
-    assert hello_spec.binary == base / "hello"
-    assert hello_spec.icon == base / "hello.png"
+    assert hello_spec.linux.binary == base / "hello"
+    assert hello_spec.linux.icon == base / "hello.png"
+    assert hello_spec.windows is None
     assert hello_spec.output_dir == base / "out"
     assert hello_spec.package_name == "hello"
     assert hello_spec.validate() == []
@@ -19,13 +20,42 @@ def test_load_resolves_paths_relative_to_config(hello_spec, hello_project):
 
 def test_roundtrip_keeps_everything(hello_spec, hello_project):
     hello_spec.deps_deb = ["libfoo1"]
-    hello_spec.build_command = "make"
+    hello_spec.linux.command = "make"
+    hello_spec.windows = config.Target(binary=hello_project.parent / "win/hello.exe",
+                                       command="make windows")
     config.save(hello_spec, hello_project)
     again = config.load(hello_project)
     for attr in ("id", "name", "version", "summary", "description", "license", "maintainer",
-                 "categories", "binary", "icon", "deps_deb", "build_command", "formats", "output_dir"):
+                 "categories", "linux", "windows", "deps_deb", "formats", "output_dir"):
         assert getattr(again, attr) == getattr(hello_spec, attr), attr
-    assert 'binary = "hello"' in hello_project.read_text()
+    text = hello_project.read_text()
+    assert '[linux]\ncommand = "make"\nbinary = "hello"' in text
+    assert '[windows]\ncommand = "make windows"\nbinary = "win/hello.exe"' in text
+    assert "[files]" not in text and "[build]" not in text
+
+
+def test_old_files_and_build_sections_are_read_as_linux(tmp_path):
+    spec = config.from_dict({
+        "app": {"id": "org.example.Old", "name": "Old", "version": "1", "summary": "s"},
+        "files": {"binary": "old", "icon": "old.png"},
+        "build": {"command": "make"},
+    }, tmp_path)
+    assert spec.linux == config.Target(binary=tmp_path / "old", icon=tmp_path / "old.png", command="make")
+    assert spec.windows is None
+
+
+def test_mixing_old_and_new_sections_is_rejected(tmp_path):
+    with pytest.raises(ConfigError, match="old name of \\[linux\\]"):
+        config.from_dict({"linux": {"binary": "a"}, "files": {"binary": "b"}}, tmp_path)
+
+
+def test_validate_only_checks_requested_platforms(hello_spec):
+    hello_spec.windows = config.Target()  # empty: invalid
+    assert hello_spec.validate(platforms=["linux"]) == []
+    assert any("[windows] set exactly one" in p for p in hello_spec.validate())
+    hello_spec.linux = None
+    assert any("no [linux] section" in p for p in hello_spec.validate(platforms=["linux"]))
+    assert hello_spec.validate(platforms=[]) == []
 
 
 @pytest.mark.parametrize("field,value,message", [
@@ -64,4 +94,4 @@ def test_detect_arch(tmp_path: Path, machine, expected):
 
 
 def test_detect_arch_script_is_independent(hello_spec):
-    assert hello_spec.arch == ("all", "noarch")
+    assert hello_spec.linux_arch == ("all", "noarch")

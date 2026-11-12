@@ -1,4 +1,4 @@
-"""Build the common FHS tree that every backend packages.
+"""Build the common FHS tree that every Linux backend packages.
 
 Layout (single binary):
     usr/bin/<exec>
@@ -20,7 +20,7 @@ from datetime import date
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from packagingonlinux.config import AppSpec
+from packagingonlinux.config import AppSpec, ConfigError, Target
 
 HICOLOR_SIZES = {16, 22, 24, 32, 48, 64, 96, 128, 256, 512}
 
@@ -33,15 +33,22 @@ def png_size(path: Path) -> tuple[int, int] | None:
     return struct.unpack(">II", head[16:24])
 
 
+def _linux(spec: AppSpec) -> Target:
+    if spec.linux is None:
+        raise ConfigError("no [linux] section in the config")
+    return spec.linux
+
+
 def icon_destination(spec: AppSpec) -> tuple[str, list[str]]:
     """Return (path relative to the stage root, warnings) for the app icon."""
-    assert spec.icon is not None
-    suffix = spec.icon.suffix.lower()
+    icon = _linux(spec).icon
+    assert icon is not None
+    suffix = icon.suffix.lower()
     if suffix == ".svg":
         return f"usr/share/icons/hicolor/scalable/apps/{spec.id}.svg", []
-    size = png_size(spec.icon) if suffix == ".png" else None
+    size = png_size(icon) if suffix == ".png" else None
     if size is None:
-        raise ValueError(f"icon must be a PNG or SVG file: {spec.icon}")
+        raise ValueError(f"icon must be a PNG or SVG file: {icon}")
     w, h = size
     if w == h and w in HICOLOR_SIZES:
         return f"usr/share/icons/hicolor/{w}x{w}/apps/{spec.id}.png", []
@@ -54,17 +61,18 @@ def icon_destination(spec: AppSpec) -> tuple[str, list[str]]:
 
 
 def desktop_entry(spec: AppSpec) -> str:
+    target = _linux(spec)
     categories = ";".join(spec.categories) + ";"
     lines = [
         "[Desktop Entry]",
         "Type=Application",
         f"Name={spec.name}",
         f"Comment={spec.summary}",
-        f"Exec={spec.exec_name}",
+        f"Exec={target.exec_name}",
         f"Categories={categories}",
         "Terminal=false",
     ]
-    if spec.icon:
+    if target.icon:
         lines.insert(4, f"Icon={spec.id}")
     return "\n".join(lines) + "\n"
 
@@ -116,32 +124,33 @@ def _normalize_permissions(root: Path) -> None:
 def build_stage(spec: AppSpec, root: Path) -> list[str]:
     """Populate `root` with the installed file tree. Returns warnings."""
     warnings: list[str] = []
+    target = _linux(spec)
     root.mkdir(parents=True, exist_ok=True)
     bindir = root / "usr/bin"
     bindir.mkdir(parents=True, exist_ok=True)
 
-    if spec.binary:
-        dest = bindir / spec.exec_name
-        shutil.copy2(spec.binary, dest)
+    if target.binary:
+        dest = bindir / target.exec_name
+        shutil.copy2(target.binary, dest)
         dest.chmod(0o755)
     else:
-        assert spec.dir is not None
+        assert target.dir is not None
         libdir = root / "usr/lib" / spec.package_name
-        shutil.copytree(spec.dir, libdir, symlinks=True)
-        exe = libdir / spec.exec
+        shutil.copytree(target.dir, libdir, symlinks=True)
+        exe = libdir / target.exec
         exe.chmod(exe.stat().st_mode | 0o111)
-        link = bindir / spec.exec_name
+        link = bindir / target.exec_name
         link.symlink_to(os.path.relpath(exe, bindir))
 
     _write(root / f"usr/share/applications/{spec.id}.desktop", desktop_entry(spec))
     _write(root / f"usr/share/metainfo/{spec.id}.metainfo.xml", metainfo(spec))
 
-    if spec.icon:
+    if target.icon:
         rel, icon_warnings = icon_destination(spec)
         warnings += icon_warnings
         dest = root / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(spec.icon, dest)
+        shutil.copyfile(target.icon, dest)
     else:
         warnings.append("no icon set: the app will show a generic icon in menus")
 

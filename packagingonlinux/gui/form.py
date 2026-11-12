@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from packagingonlinux import elf
-from packagingonlinux.config import COMMON_LICENSES, MAIN_CATEGORIES, AppSpec, suggest_id
+from packagingonlinux.config import COMMON_LICENSES, MAIN_CATEGORIES, AppSpec, Target, suggest_id
 from packagingonlinux.gui.qt import (
     QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
     QPixmap, QPlainTextEdit, QPushButton, Qt, QVBoxLayout, QWidget, Signal,
@@ -54,6 +54,7 @@ class AppForm(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._id_auto = True
+        self._windows: Target | None = None  # not editable here yet: kept as loaded
 
         # --- application metadata
         self.name = QLineEdit()
@@ -215,12 +216,14 @@ class AppForm(QWidget):
         self.license.setCurrentText(spec.license)
         self.homepage.setText(spec.homepage)
         self.category.setCurrentText(spec.categories[0] if spec.categories else "Utility")
-        self.mode.setCurrentIndex(1 if spec.dir else 0)
-        self.binary.set_path(spec.binary)
-        self.dir.set_path(spec.dir)
-        self.exec.setText(spec.exec)
-        self.icon.set_path(spec.icon)
-        self.build_command.setText(spec.build_command)
+        linux = spec.linux or Target()
+        self.mode.setCurrentIndex(1 if linux.dir else 0)
+        self.binary.set_path(linux.binary)
+        self.dir.set_path(linux.dir)
+        self.exec.setText(linux.exec)
+        self.icon.set_path(linux.icon)
+        self.build_command.setText(linux.command)
+        self._windows = spec.windows
         self.deps_auto.setChecked(spec.deps_auto)
         self.deps_deb.setText(", ".join(spec.deps_deb))
         self.deps_rpm.setText(", ".join(spec.deps_rpm))
@@ -239,11 +242,14 @@ class AppForm(QWidget):
             maintainer=self.maintainer.text().strip(),
             homepage=self.homepage.text().strip(),
             categories=[category] if category else ["Utility"],
-            binary=None if dir_mode else self.binary.path(),
-            dir=self.dir.path() if dir_mode else None,
-            exec=self.exec.text().strip() if dir_mode else "",
-            icon=self.icon.path(),
-            build_command=self.build_command.text().strip(),
+            linux=Target(
+                binary=None if dir_mode else self.binary.path(),
+                dir=self.dir.path() if dir_mode else None,
+                exec=self.exec.text().strip() if dir_mode else "",
+                icon=self.icon.path(),
+                command=self.build_command.text().strip(),
+            ),
+            windows=self._windows,
             deps_auto=self.deps_auto.isChecked(),
             deps_deb=_split(self.deps_deb.text()),
             deps_rpm=_split(self.deps_rpm.text()),
