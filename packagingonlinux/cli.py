@@ -143,31 +143,128 @@ def cmd_gui(args: argparse.Namespace) -> int:
     return gui_main([args.config] if args.config else [])
 
 
-def main(argv: list[str] | None = None) -> int:
+DESCRIPTION = """\
+Package a prebuilt application (a binary or an install folder, one per platform) into
+Linux and Windows formats, without root and from any distribution. The app is described
+once in a packaging.toml file, shared by this command, the graphical interface and CI."""
+
+# (command line, what it does): shown by --help and in the man page.
+EXAMPLES = [
+    ("packagingonlinux init", "write a packaging.toml in the current directory, asking questions"),
+    ("packagingonlinux doctor", "list the formats this machine can build, and how to get the others"),
+    ("packagingonlinux check -c app/packaging.toml", "validate a config without building anything"),
+    ("packagingonlinux build", "build the formats listed in [output] formats of ./packaging.toml"),
+    ("packagingonlinux build -f deb,rpm -o dist", "build only the deb and rpm packages, into dist/"),
+    ("packagingonlinux gui app/packaging.toml", "edit a config in the graphical interface"),
+]
+
+EXIT_STATUS = [
+    ("0", "success"),
+    ("1", "check found a problem, a format failed to build, init refused to overwrite a file, "
+          "or the GUI is not available"),
+    ("2", "invalid command line or config (unreadable packaging.toml, unknown format...)"),
+    ("130", "interrupted (Ctrl+C)"),
+]
+
+ENVIRONMENT = [
+    ("PACKAGINGONLINUX_APPIMAGE_RUNTIME",
+     "path to an AppImage type2 runtime to use instead of downloading the pinned release"),
+    ("XDG_CACHE_HOME", "where the downloaded AppImage runtime is cached (default: ~/.cache)"),
+]
+
+FILES = [
+    ("packaging.toml", "the config read by default, in the current directory"),
+    ("$XDG_CACHE_HOME/packagingonlinux/", "cache of the AppImage runtime"),
+]
+
+
+def formats_help() -> list[tuple[str, str, str]]:
+    """(format, what it builds and from which section, how to install its tools) per backend."""
+    rows = []
+    for b in BACKENDS.values():
+        text = f"{b.label}, from [{b.platform}]"
+        if b.required_tools:
+            text += f"; needs {', '.join(b.required_tools)}"
+        rows.append((b.name, text, b.install_hint if b.required_tools else ""))
+    return rows
+
+
+def _epilog() -> str:
+    def block(title: str, rows: list[tuple[str, str]]) -> str:
+        width = max(len(k) for k, _ in rows) + 2
+        return title + ":\n" + "\n".join(f"  {k:{width}}{v}" for k, v in rows)
+    rows = formats_help()
+    indent = " " * (max(len(name) for name, _, _ in rows) + 4)
+    formats = [(name, text + (f"\n{indent}install: {hint}" if hint else "")) for name, text, hint in rows]
+    return "\n\n".join([
+        block("formats", formats),
+        "examples:\n" + "\n".join(f"  {cmd}\n      {what}" for cmd, what in EXAMPLES),
+        block("exit status", EXIT_STATUS),
+        "Run 'packagingonlinux COMMAND --help' for a command's options.\n"
+        "Full manual: man packagingonlinux",
+    ])
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """The command line parser (also the source of the man page, see tools/gen_man.py)."""
     parser = argparse.ArgumentParser(
         prog="packagingonlinux",
-        description="Package a prebuilt Linux or Windows application as " + ", ".join(BACKENDS) + ".",
+        description=DESCRIPTION,
+        epilog=_epilog(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=__version__)
-    sub = parser.add_subparsers(dest="command", required=True)
+    sub = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
+
+    def command(name: str, summary: str, description: str) -> argparse.ArgumentParser:
+        return sub.add_parser(name, help=summary, description=description)
 
     def with_config(p: argparse.ArgumentParser) -> argparse.ArgumentParser:
-        p.add_argument("-c", "--config", default=config.CONFIG_NAME, help="path to packaging.toml")
+        p.add_argument("-c", "--config", default=config.CONFIG_NAME, metavar="PATH",
+                       help="path to the config (default: packaging.toml in the current directory)")
         return p
 
-    p = with_config(sub.add_parser("init", help="create a packaging.toml interactively"))
-    p.add_argument("--force", action="store_true")
+    p = with_config(command(
+        "init", "create a packaging.toml interactively",
+        "Ask for the executable, name, id, version, maintainer, license, icon, category and "
+        "formats, then write a [linux] config. Refuses to overwrite an existing file."))
+    p.add_argument("--force", action="store_true", help="overwrite the config if it exists")
     p.set_defaults(func=cmd_init)
-    sub.add_parser("doctor", help="show which formats can be built on this machine").set_defaults(func=cmd_doctor)
-    with_config(sub.add_parser("check", help="validate the config and generated metadata")).set_defaults(func=cmd_check)
-    p = with_config(sub.add_parser("build", help="build packages"))
-    p.add_argument("-f", "--format", help="comma-separated formats (default: [output] formats)")
-    p.add_argument("-o", "--output", help="output directory (default: [output] dir)")
-    p.set_defaults(func=cmd_build)
-    p = sub.add_parser("gui", help="open the graphical interface")
-    p.add_argument("config", nargs="?", help="packaging.toml to open")
-    p.set_defaults(func=cmd_gui)
 
+    command(
+        "doctor", "show which formats can be built on this machine",
+        "Print the version, then one line per format: ok, or the missing tools and the command "
+        "that installs them. Always exits 0.").set_defaults(func=cmd_doctor)
+
+    with_config(command(
+        "check", "validate the config and generated metadata",
+        "Report missing or invalid fields and files, then generate the Linux .desktop and "
+        "AppStream metainfo files in a temporary directory and run desktop-file-validate and "
+        "appstreamcli on them (skipped when not installed). Builds and writes nothing.",
+    )).set_defaults(func=cmd_check)
+
+    p = with_config(command(
+        "build", "build packages",
+        "For each platform that has a requested format, run its build command, then build "
+        "every requested format into the output directory. A format that fails, or whose "
+        "tools are missing, does not stop the others: failures are listed at the end and the "
+        "exit status is 1."))
+    p.add_argument("-f", "--format", metavar="FORMATS",
+                   help="comma-separated formats to build (default: [output] formats of the config)")
+    p.add_argument("-o", "--output", metavar="DIR",
+                   help="output directory (default: [output] dir of the config)")
+    p.set_defaults(func=cmd_build)
+
+    p = command(
+        "gui", "open the graphical interface",
+        "Open the graphical interface (in French), on CONFIG if given. Needs PyQt6 or PySide6.")
+    p.add_argument("config", nargs="?", metavar="CONFIG", help="packaging.toml to open")
+    p.set_defaults(func=cmd_gui)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
     args = parser.parse_args(argv)
     try:
         return args.func(args)

@@ -21,7 +21,10 @@ python3 -m packagingonlinux doctor                       # which formats this ma
 python3 -m packagingonlinux check -c path/packaging.toml # validate config + desktop-file-validate + appstreamcli
 python3 -m packagingonlinux build -c path/packaging.toml [-f deb,rpm] [-o outdir]
 .venv/bin/packagingonlinux-gui [packaging.toml]          # or: python3 -m packagingonlinux gui
+python3 tools/gen_man.py                                 # regenerate docs/man/packagingonlinux.1 from the CLI parser
 ```
+
+`docs/man/packagingonlinux.1` is generated from `cli.build_parser()` and its tables (`EXAMPLES`, `EXIT_STATUS`, `ENVIRONMENT`, `FILES`) plus every backend's `label`, `required_tools` and `install_hint`; `tests/test_man.py` fails when it is out of date, so rerun `tools/gen_man.py` after changing any of them or adding a backend.
 
 The core needs only Python ≥ 3.11 with no dependencies (`tomllib`). The GUI runs on PySide6 (the pip `[gui]` extra) or PyQt6 (what distros package, and what the self-built deb/rpm depend on). GUI modules import Qt names only from `packagingonlinux/gui/qt.py`, never from PySide6/PyQt6 directly, and must use fully scoped enums (`Qt.AlignmentFlag.AlignCenter`), which PyQt6 requires. Don't import Qt outside `packagingonlinux/gui/`. rpm builds can be tested from a non-rpm host with `docker run --rm -v "$PWD":/src:ro fedora:latest` (install `rpm-build python3`). Docker Desktop cannot mount `/tmp`, so keep outputs inside the container.
 

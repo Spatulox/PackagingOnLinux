@@ -56,7 +56,7 @@ packagingonlinux check -c packaging.toml               # validate the config and
 packagingonlinux build -c packaging.toml [-f deb,rpm] [-o dist]
 ```
 
-A failing format does not stop the others; errors are listed at the end.
+A failing format does not stop the others; errors are listed at the end. `packagingonlinux --help` lists the formats, the tools each one needs, examples and exit statuses; the full reference is the man page, readable from the sources with `man -l docs/man/packagingonlinux.1`.
 
 The `appimage` format needs `mksquashfs` (`squashfs-tools`). The first build downloads the AppImage runtime (a pinned release, checked against its sha256) into `~/.cache/packagingonlinux/`; offline, download it yourself and set `PACKAGINGONLINUX_APPIMAGE_RUNTIME` to its path. The app's libraries are not bundled: like the tar.gz, the AppImage uses those of the user's system.
 

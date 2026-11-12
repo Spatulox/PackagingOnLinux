@@ -8,6 +8,7 @@ A release is published only for a version that has a section in this file.
 ### Added
 - AppImage format (`appimage`).
 - Flatpak format (`flatpak`), with its runtime and sandbox permissions in the new `[flatpak]` section.
+- `packagingonlinux --help` lists the formats with the tools they need, examples and exit statuses; the same content is in the `packagingonlinux(1)` man page (`docs/man/`).
 
 ## [0.1.3]
 
