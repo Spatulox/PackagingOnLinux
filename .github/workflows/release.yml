@@ -1,6 +1,8 @@
 # Pushing a tag vX.Y.Z tests the project, builds every package with version X.Y.Z
 # (whatever packaging.toml says) and publishes them as the GitHub release vX.Y.Z:
 # deb, rpm, tar.gz, Windows installer (setup.exe) and Windows portable zip.
+# The release notes are the "## [X.Y.Z]" section of CHANGELOG.md. A tag whose version
+# has no section there (or an empty one) fails at once: nothing is built or released.
 name: Release
 
 on:
@@ -16,6 +18,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
+      - uses: actions/checkout@v7
       - id: version
         run: |
           version="${GITHUB_REF_NAME#v}"
@@ -25,8 +28,43 @@ jobs:
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Extract the release notes from CHANGELOG.md
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ -f CHANGELOG.md ]; then
+            # The section starts at "## [X.Y.Z]", "## X.Y.Z" or "## vX.Y.Z" (an optional
+            # " - date" may follow) and ends at the next "## " heading. Blank lines at the
+            # start and end of the section are dropped.
+            awk -v v="$VERSION" '
+              /^## / {
+                if (in_section) exit
+                h = $0
+                sub(/^## +/, "", h); sub(/^\[/, "", h); sub(/^v/, "", h); sub(/[] ].*$/, "", h)
+                in_section = (h == v)
+                next
+              }
+              in_section {
+                lines[++n] = $0
+                if ($0 ~ /[^[:space:]]/) { if (!first) first = n; last = n }
+              }
+              END { if (first) for (i = first; i <= last; i++) print lines[i] }
+            ' CHANGELOG.md > release-notes.md
+          fi
+          if [ ! -s release-notes.md ]; then
+            echo "::error::No entry for $VERSION in CHANGELOG.md: add a \"## [$VERSION]\" section to release it"
+            exit 1
+          fi
+          cat release-notes.md
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: release-notes.md
+          if-no-files-found: error
+          retention-days: 1
 
   test:
+    needs: version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -116,11 +154,15 @@ jobs:
           pattern: pkg-*
           path: dist
           merge-multiple: true
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+          path: notes
       - run: ls -l dist
       - run: >
           gh release create "$GITHUB_REF_NAME" dist/*
           --title "PackagingOnLinux ${{ needs.version.outputs.version }}"
-          --generate-notes --verify-tag
+          --notes-file notes/release-notes.md --verify-tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
