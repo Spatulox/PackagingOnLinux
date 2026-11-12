@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from packagingonlinux import staging
+from packagingonlinux import staging, winstage
 from packagingonlinux.backends import BACKENDS, BuildContext
 from packagingonlinux.config import PLATFORMS, AppSpec, ConfigError
 from packagingonlinux.runner import CommandError, Log, run
@@ -18,6 +18,7 @@ from packagingonlinux.runner import CommandError, Log, run
 class ToolStatus:
     name: str
     label: str
+    platform: str
     missing: list[str]
     install_hint: str
 
@@ -38,7 +39,7 @@ class BuildResult:
 
 
 def doctor() -> list[ToolStatus]:
-    return [ToolStatus(b.name, b.label, b.missing_tools(), b.install_hint) for b in BACKENDS.values()]
+    return [ToolStatus(b.name, b.label, b.platform, b.missing_tools(), b.install_hint) for b in BACKENDS.values()]
 
 
 def build_env(spec: AppSpec, platform: str) -> dict[str, str]:
@@ -51,6 +52,7 @@ def build_env(spec: AppSpec, platform: str) -> dict[str, str]:
 # platform -> function(spec, stage_root) -> warnings, building that platform's staging tree
 STAGERS: dict[str, Callable[[AppSpec, Path], list[str]]] = {
     "linux": staging.build_stage,
+    "windows": winstage.build_stage,
 }
 
 

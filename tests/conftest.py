@@ -48,3 +48,20 @@ def hello_project(tmp_path: Path) -> Path:
 @pytest.fixture
 def hello_spec(hello_project: Path) -> config.AppSpec:
     return config.load(hello_project)
+
+
+def make_pe(path: Path, machine: int = 0x8664) -> Path:
+    """A minimal file with a valid PE header (DOS stub -> "PE\\0\\0" -> machine type)."""
+    dos = bytearray(64)
+    dos[:2] = b"MZ"
+    dos[0x3C:0x40] = struct.pack("<I", 64)
+    path.write_bytes(bytes(dos) + b"PE\0\0" + struct.pack("<H", machine) + b"\0" * 18)
+    return path
+
+
+@pytest.fixture
+def windows_spec(hello_spec: config.AppSpec) -> config.AppSpec:
+    """hello_spec plus a [windows] target: a fake x64 hello.exe (the icon comes from [linux])."""
+    exe = make_pe(hello_spec.base_dir / "hello.exe")
+    hello_spec.windows = config.Target(binary=exe)
+    return hello_spec

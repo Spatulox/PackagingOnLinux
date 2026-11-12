@@ -7,7 +7,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from packagingonlinux import __version__, config, core, staging
+from packagingonlinux import __version__, config, core, staging, winstage
 from packagingonlinux.backends import BACKENDS
 from packagingonlinux.config import ConfigError
 from packagingonlinux.runner import CommandError
@@ -54,35 +54,27 @@ def cmd_init(args: argparse.Namespace) -> int:
 def cmd_doctor(args: argparse.Namespace) -> int:
     for status in core.doctor():
         if status.ok:
-            print(f"  ok       {status.name:9} {status.label}")
+            print(f"  ok       {status.platform:8} {status.name:9} {status.label}")
         else:
-            print(f"  missing  {status.name:9} {status.label}: needs {', '.join(status.missing)}")
-            print(f"           {'':9} install: {status.install_hint}")
+            print(f"  missing  {status.platform:8} {status.name:9} {status.label}: needs {', '.join(status.missing)}")
+            print(f"           {'':8} {'':9} install: {status.install_hint}")
     return 0
 
 
-def cmd_check(args: argparse.Namespace) -> int:
-    spec = config.load(Path(args.config))
-    problems = spec.validate()
-    for p in problems:
-        print(f"error: {p}")
-    if problems:
-        return 1
-    if spec.linux is None:
-        print(f"{spec.name} {spec.version}: no [linux] section, nothing else to check")
-        return 0
+def _check_linux(spec: config.AppSpec) -> bool:
+    """Stage the Linux target and run the freedesktop validators. Returns True on failure."""
+    import shutil
+    import subprocess
+    failed = False
     with tempfile.TemporaryDirectory() as tmp:
         stage = Path(tmp)
         for w in staging.build_stage(spec, stage):
             print(f"warning: {w}")
-        import shutil
-        import subprocess
         validators = [
             ("desktop-file-validate", [str(stage / f"usr/share/applications/{spec.id}.desktop")]),
             ("appstreamcli", ["validate", "--no-net", "--explain",
                               str(stage / f"usr/share/metainfo/{spec.id}.metainfo.xml")]),
         ]
-        failed = False
         for tool, tool_args in validators:
             if not shutil.which(tool):
                 print(f"skip: {tool} not installed")
@@ -95,8 +87,32 @@ def cmd_check(args: argparse.Namespace) -> int:
             if output:
                 print("  " + output.replace("\n", "\n  "))
             failed |= bad
-    arch = spec.linux_arch
-    print(f"{spec.name} {spec.version} (linux {arch[0]}/{arch[1]}) -> {', '.join(spec.formats)}")
+    return failed
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    spec = config.load(Path(args.config))
+    problems = spec.validate()
+    for p in problems:
+        print(f"error: {p}")
+    if problems:
+        return 1
+    failed = False
+    targets = []
+    if spec.linux is not None:
+        failed |= _check_linux(spec)
+        arch = spec.linux_arch
+        targets.append(f"linux {arch[0]}/{arch[1]}")
+    if spec.windows is not None:
+        with tempfile.TemporaryDirectory() as tmp:
+            try:
+                for w in winstage.build_stage(spec, Path(tmp)):
+                    print(f"warning: {w}")
+                targets.append(f"windows {spec.windows_arch}")
+            except ValueError as e:
+                print(f"error: {e}")
+                failed = True
+    print(f"{spec.name} {spec.version} ({', '.join(targets)}) -> {', '.join(spec.formats)}")
     return 1 if failed else 0
 
 
@@ -127,7 +143,7 @@ def cmd_gui(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="packagingonlinux",
-        description="Package a prebuilt Linux application as " + ", ".join(BACKENDS) + ".",
+        description="Package a prebuilt Linux or Windows application as " + ", ".join(BACKENDS) + ".",
     )
     parser.add_argument("--version", action="version", version=__version__)
     sub = parser.add_subparsers(dest="command", required=True)

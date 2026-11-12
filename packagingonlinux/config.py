@@ -23,7 +23,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from packagingonlinux import elf
+from packagingonlinux import elf, pe
 
 CONFIG_NAME = "packaging.toml"
 
@@ -132,6 +132,18 @@ class AppSpec:
         if self.linux is None:
             raise ConfigError("no [linux] section in the config")
         return elf.detect_arch(self.linux.main_executable)
+
+    @property
+    def windows_arch(self) -> str:
+        """"x86", "x64" or "arm64", detected from the Windows executable."""
+        if self.windows is None:
+            raise ConfigError("no [windows] section in the config")
+        return pe.detect_arch(self.windows.main_executable)
+
+    @property
+    def file_stem(self) -> str:
+        """The app name, safe for file names, keeping its case (e.g. for Windows files)."""
+        return re.sub(r"[^A-Za-z0-9._+-]+", "-", self.name).strip("-.") or self.package_name
 
     @property
     def description_text(self) -> str:
