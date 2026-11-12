@@ -4,15 +4,26 @@ from packagingonlinux import core
 from packagingonlinux.gui.qt import QCheckBox, QGridLayout, QGroupBox, QLabel
 
 
+PLATFORM_TITLES = {"linux": "Linux", "windows": "Windows (depuis Linux)"}
+
+
 class FormatsPanel(QGroupBox):
-    """One checkbox per backend. Backends whose tools are missing are disabled, with a hint."""
+    """One checkbox per backend, grouped by platform. Backends whose tools are missing are
+    disabled, with a hint."""
 
     def __init__(self, parent=None):
         super().__init__("Formats à générer", parent)
         self.checkboxes: dict[str, QCheckBox] = {}
         self.status: dict[str, core.ToolStatus] = {}
+        self.headers: dict[str, QLabel] = {}
         grid = QGridLayout(self)
-        for row, status in enumerate(core.doctor()):
+        row = 0
+        for status in core.doctor():
+            if status.platform not in self.headers:
+                header = QLabel(f"<b>{PLATFORM_TITLES.get(status.platform, status.platform)}</b>")
+                self.headers[status.platform] = header
+                grid.addWidget(header, row, 0, 1, 2)
+                row += 1
             box = QCheckBox(status.label)
             note = QLabel()
             if status.ok:
@@ -28,6 +39,7 @@ class FormatsPanel(QGroupBox):
             self.status[status.name] = status
             grid.addWidget(box, row, 0)
             grid.addWidget(note, row, 1)
+            row += 1
         grid.setColumnStretch(1, 1)
 
     def set_formats(self, formats: list[str]) -> None:

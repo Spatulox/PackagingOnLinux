@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 from packagingonlinux import __version__, config
+from packagingonlinux.backends import BACKENDS
 from packagingonlinux.config import ConfigError
 from packagingonlinux.gui.form import AppForm, PathField
 from packagingonlinux.gui.formats import FormatsPanel
@@ -153,13 +154,16 @@ class MainWindow(QMainWindow):
     # ---- build ------------------------------------------------------------------
     def start_build(self) -> None:
         spec = self.current_spec()
-        problems = spec.validate()
-        if problems:
-            QMessageBox.warning(self, "Informations manquantes", "\n".join(f"• {p}" for p in problems))
-            return
         formats = self.formats.buildable_formats()
         if not formats:
             QMessageBox.warning(self, "Aucun format", "Cochez au moins un format disponible sur cette machine.")
+            return
+        # Only the platforms being built need their files (e.g. no .exe for a deb).
+        # Files a build command will produce are checked by core.build, after running it.
+        platforms = sorted({BACKENDS[f].platform for f in formats})
+        problems = spec.validate(check_files=False, platforms=platforms)
+        if problems:
+            QMessageBox.warning(self, "Informations manquantes", "\n".join(f"• {p}" for p in problems))
             return
         self.log.clear()
         self.build_button.setEnabled(False)

@@ -10,6 +10,7 @@ pytest.importorskip("pytestqt")
 from packagingonlinux import config  # noqa: E402
 from packagingonlinux.gui.app import MainWindow  # noqa: E402
 from packagingonlinux.gui.qt import QMessageBox  # noqa: E402
+from tests.conftest import make_pe  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -36,7 +37,8 @@ def window(qtbot, hello_project):
 def test_open_fills_form(window, hello_spec):
     assert window.form.name.text() == "Hello"
     assert window.form.app_id.text() == "org.example.Hello"
-    assert window.form.arch.text().startswith("indépendante")
+    assert window.form.linux.arch.text().startswith("indépendante")
+    assert window.form.windows.target() is None
     assert window.formats.formats() == ["deb", "tarball"]
 
 
@@ -79,3 +81,28 @@ def test_license_choice_or_custom(window):
     assert window.current_spec().license == "MIT"
     window.form.license.setCurrentText("LicenseRef-MyCompany")  # custom value, not in the list
     assert window.current_spec().license == "LicenseRef-MyCompany"
+
+
+def test_windows_tab_roundtrip(window, hello_project):
+    exe = make_pe(hello_project.parent / "hello.exe", 0xAA64)
+    window.form.windows.binary.set_path(exe)
+    window.form.windows.command.setText("make windows")
+    assert window.form.windows.arch.text() == "arm64"
+    assert window.save()
+    again = config.load(hello_project)
+    assert again.windows == config.Target(binary=exe, command="make windows")
+    window.form.windows.binary.set_path(None)
+    window.form.windows.command.setText("")
+    assert window.current_spec().windows is None  # empty tab = no [windows] section
+
+
+def test_name_suggested_from_windows_exe(qtbot, tmp_path):
+    w = MainWindow()
+    qtbot.addWidget(w)
+    w.form.windows.binary.set_path(make_pe(tmp_path / "Cool.exe"))
+    assert w.form.name.text() == "Cool"
+
+
+def test_formats_grouped_by_platform(window):
+    assert set(window.formats.headers) == {"linux", "windows"}
+    assert {"zip", "nsis"} <= set(window.formats.checkboxes)
