@@ -109,7 +109,7 @@ class AppSpec:
     deps_deb: list[str] = field(default_factory=list)
     deps_rpm: list[str] = field(default_factory=list)
     formats: list[str] = field(default_factory=lambda: ["deb", "rpm"])
-    output_dir: Path = Path("builds")
+    output_dir: Path = Path("dist")
     base_dir: Path = Path(".")
 
     # ---- derived values -------------------------------------------------
@@ -252,7 +252,7 @@ def from_dict(data: dict, base_dir: Path) -> AppSpec:
         deps_deb=_str_list(deps, "deb", "deps"),
         deps_rpm=_str_list(deps, "rpm", "deps"),
         formats=_str_list(output, "formats", "output") or ["deb", "rpm"],
-        output_dir=_path(base_dir, output.get("dir") or "builds"),
+        output_dir=_path(base_dir, output.get("dir") or "dist"),
         base_dir=base_dir,
     )
     return spec

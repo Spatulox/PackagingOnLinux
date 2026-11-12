@@ -51,7 +51,7 @@ Fill in the form, choose the binary and the icon (in the Linux tab, and in the W
 packagingonlinux init                                  # create a packaging.toml interactively
 packagingonlinux doctor                                # which formats this machine can build
 packagingonlinux check -c packaging.toml               # validate the config and generated metadata
-packagingonlinux build -c packaging.toml [-f deb,rpm] [-o builds]
+packagingonlinux build -c packaging.toml [-f deb,rpm] [-o dist]
 ```
 
 A failing format does not stop the others; errors are listed at the end.
@@ -87,7 +87,7 @@ rpm = ["gtk3"]
 
 [output]
 formats = ["deb", "rpm", "tarball", "zip", "nsis"]
-dir = "builds"
+dir = "dist"
 ```
 
 A platform's `command` runs in the config's folder before packaging, only when a format of that platform is built (so `-f deb` never runs the Windows build). It receives `$APP_ID`, `$APP_NAME`, `$APP_VERSION` and `$APP_PLATFORM` (`linux` or `windows`). Older configs with `[files]` and `[build] command` are still read as `[linux]`.

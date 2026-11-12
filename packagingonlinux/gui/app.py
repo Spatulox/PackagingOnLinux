@@ -29,7 +29,7 @@ class MainWindow(QMainWindow):
         self.form = AppForm()
         self.formats = FormatsPanel()
         self.output = PathField("Dossier de sortie", directory=True)
-        self.output.set_path(Path.cwd() / "builds")
+        self.output.set_path(Path.cwd() / "dist")
         out_form = QFormLayout()
         out_form.addRow("Dossier de sortie", self.output)
 
@@ -106,7 +106,7 @@ class MainWindow(QMainWindow):
         return self.config_path.parent if self.config_path else Path.cwd()
 
     def current_spec(self) -> config.AppSpec:
-        output = self.output.path() or self._base_dir() / "builds"
+        output = self.output.path() or self._base_dir() / "dist"
         return self.form.to_spec(self._base_dir(), self.formats.formats(), output)
 
     # ---- file actions ----------------------------------------------------------
@@ -114,7 +114,7 @@ class MainWindow(QMainWindow):
         self.config_path = None
         self.form.set_spec(config.AppSpec(id="", name="", version="1.0.0", summary=""))
         self.formats.set_formats(["deb", "rpm"])
-        self.output.set_path(Path.cwd() / "builds")
+        self.output.set_path(Path.cwd() / "dist")
         self.log.clear()
         self._update_title()
 

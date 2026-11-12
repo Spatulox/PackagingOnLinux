@@ -5,21 +5,14 @@
 *.so
 *.dylib
 
-# Test binary, built with `go test -c`
-*.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
-
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
 # Python
 __pycache__/
 *.egg-info/
 .venv/
 .pytest_cache/
+
+# Intermediate build files (e.g. build/app, build/windows)
 build/
 
 # Generated packages
-builds/
+dist/

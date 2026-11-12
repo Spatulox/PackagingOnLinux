@@ -77,10 +77,10 @@ Principes clés :
 │ Dépendances : ☑ auto   En plus (deb) / En plus (rpm)     │
 │ Formats : ☑ deb ☑ rpm ☑ tar.gz ☐ AppImage ⚠ ...          │
 │           (⚠ = outil manquant, survol → commande d'install)│
-│ Dossier de sortie: [builds/]                              │
+│ Dossier de sortie: [dist/]                               │
 │ [ Construire les paquets ]   [Ouvrir le dossier de sortie]│
 │ ┌ Journal ───────────────────────────────────────────┐   │
-│ │ [deb] OK builds/myapp_1.0.0_amd64.deb               │   │
+│ │ [deb] OK dist/myapp_1.0.0_amd64.deb                │   │
 │ └────────────────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -112,7 +112,7 @@ rpm = ["gtk3"]
 
 [output]
 formats = ["deb", "rpm", "tarball"]
-dir = "builds"
+dir = "dist"
 ```
 
 ## Détail par backend

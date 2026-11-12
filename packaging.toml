@@ -42,4 +42,4 @@ rpm = ["python3 >= 3.11", "python3-pyqt6"]
 
 [output]
 formats = ["deb", "rpm", "tarball"]
-dir = "builds"
+dir = "dist"
