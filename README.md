@@ -30,6 +30,16 @@ sudo dnf install ./packagingonlinux-*.rpm        # Fedora
 
 Use `apt install ./file.deb` rather than `dpkg -i`, which does not install dependencies.
 
+The AppImage, Flatpak and Snap include their own Python and Qt, so they work on any distribution:
+
+```bash
+chmod +x PackagingOnLinux-*.AppImage && ./PackagingOnLinux-*.AppImage   # nothing to install
+flatpak install --user --bundle PackagingOnLinux-*.flatpak               # pulls the runtime from Flathub
+sudo snap install --dangerous --classic packagingonlinux_*.snap
+```
+
+To build packages, PackagingOnLinux runs tools installed on your system (`dpkg-deb`, `rpmbuild`, your build command...). Its Flatpak therefore runs them outside its sandbox (with `flatpak-spawn --host`) and can read and write your home folder, and its snap uses classic confinement. Both have the same access as the deb.
+
 From the sources:
 
 ```bash

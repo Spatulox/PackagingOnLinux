@@ -43,3 +43,16 @@ rpm = ["python3 >= 3.11", "python3-pyqt6"]
 [output]
 formats = ["deb", "rpm", "tarball"]
 dir = "dist"
+
+# The AppImage, Flatpak and Snap don't package build/app (which needs the system's Python
+# and PyQt6) but a PyInstaller bundle with Python and Qt included: the release workflow
+# builds it, then selfpack/linux/bundled_config.py makes their config from this file.
+[flatpak]
+# The app runs the host's tools (dpkg-deb, rpmbuild, the user's build command...) through
+# flatpak-spawn --host, reads and writes projects in the home folder, and downloads the
+# AppImage runtime.
+finish_args = ["--share=ipc", "--socket=wayland", "--socket=fallback-x11", "--device=dri", "--share=network", "--filesystem=home", "--talk-name=org.freedesktop.Flatpak"]
+
+[snap]
+# Same access as the deb: a strict snap could not run the host's packaging tools.
+confinement = "classic"

@@ -1,6 +1,7 @@
 # Pushing a tag vX.Y.Z tests the project, builds every package with version X.Y.Z
 # (whatever packaging.toml says) and publishes them as the GitHub release vX.Y.Z:
-# deb, rpm, tar.gz, Windows installer (setup.exe) and Windows portable zip.
+# deb, rpm, tar.gz, AppImage, Flatpak, Snap, Windows installer (setup.exe) and Windows
+# portable zip.
 # The release notes are the "## [X.Y.Z]" section of CHANGELOG.md. A tag whose version
 # has no section there (or an empty one) fails at once: nothing is built or released.
 name: Release
@@ -98,15 +99,101 @@ jobs:
       - name: Freeze with PyInstaller
         run: >
           pyinstaller --noconfirm --windowed --name PackagingOnLinux
-          --icon selfpack/packagingonlinux.ico --collect-submodules packagingonlinux --exclude-module PyQt6
+          --icon selfpack/packagingonlinux.ico --paths . --collect-submodules packagingonlinux --exclude-module PyQt6
           --workpath build/pyinstaller --distpath build/windows
-          selfpack/windows/launcher.py
+          selfpack/frozen_launcher.py
       - uses: actions/upload-artifact@v7
         with:
           name: windows-app
           path: build/windows/
           if-no-files-found: error
           retention-days: 1
+
+  # The AppImage, Flatpak and Snap can't use the system's Python and PyQt6 like the deb:
+  # they package this bundle (Python and Qt included). It is built on the oldest runner,
+  # so that it runs with older glibc versions too.
+  linux-app:
+    needs: version
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install PySide6-Essentials pyinstaller
+      - name: Set the version from the tag
+        run: sed -i 's/^__version__ = .*/__version__ = "${{ needs.version.outputs.version }}"/' packagingonlinux/__init__.py
+      - name: Freeze with PyInstaller
+        run: >
+          pyinstaller --noconfirm --name packagingonlinux
+          --paths . --collect-submodules packagingonlinux --exclude-module PyQt6
+          --workpath build/pyinstaller --distpath build/linux
+          selfpack/frozen_launcher.py
+      - run: test "$(build/linux/packagingonlinux/packagingonlinux --version)" = "${{ needs.version.outputs.version }}"
+      # Artifacts drop the executable bit: keep it in a tar.
+      - run: tar -C build -cf linux-app.tar linux
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-app
+          path: linux-app.tar
+          if-no-files-found: error
+          retention-days: 1
+
+  appimage-flatpak:
+    needs: [version, test, linux-app]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends squashfs-tools flatpak flatpak-builder librsvg2-common
+      - uses: actions/download-artifact@v8
+        with:
+          name: linux-app
+      - run: mkdir -p build && tar -C build -xf linux-app.tar
+      - name: Set the package version from the tag
+        run: sed -i 's/^version = .*/version = "${{ needs.version.outputs.version }}"/' packaging.toml
+      - run: python3 selfpack/linux/bundled_config.py
+      - run: python3 -m packagingonlinux build -c build/packaging-bundled.toml -f appimage,flatpak -o dist
+      - name: Run the AppImage
+        run: test "$(dist/*.AppImage --appimage-extract-and-run --version)" = "${{ needs.version.outputs.version }}"
+      - name: Install and run the Flatpak
+        run: |
+          flatpak install --user -y --noninteractive --bundle dist/*.flatpak
+          test "$(dbus-run-session -- flatpak run io.github.spatulox.PackagingOnLinux --version)" = "${{ needs.version.outputs.version }}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pkg-appimage-flatpak
+          path: |
+            dist/*.AppImage
+            dist/*.flatpak
+          if-no-files-found: error
+
+  # snapcraft builds directly on the runner (SNAPCRAFT_BUILD_ENVIRONMENT=host), as root and
+  # on the Ubuntu release of [snap] base (24.04 for core24).
+  snap:
+    needs: [version, test, linux-app]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - run: sudo snap install snapcraft --classic
+      - uses: actions/download-artifact@v8
+        with:
+          name: linux-app
+      - run: mkdir -p build && tar -C build -xf linux-app.tar
+      - name: Set the package version from the tag
+        run: sed -i 's/^version = .*/version = "${{ needs.version.outputs.version }}"/' packaging.toml
+      - run: python3 selfpack/linux/bundled_config.py
+      - run: sudo SNAPCRAFT_BUILD_ENVIRONMENT=host python3 -m packagingonlinux build -c build/packaging-bundled.toml -f snap -o dist
+      - name: Install and run the snap
+        run: |
+          sudo snap install --dangerous --classic dist/*.snap
+          test "$(/snap/bin/packagingonlinux --version)" = "${{ needs.version.outputs.version }}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pkg-snap
+          path: dist/*.snap
+          if-no-files-found: error
 
   linux:
     needs: [version, test, windows-app]
@@ -144,7 +231,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [version, linux, rpm]
+    needs: [version, linux, rpm, appimage-flatpak, snap]
     runs-on: ubuntu-latest
     permissions:
       contents: write

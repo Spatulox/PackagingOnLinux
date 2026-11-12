@@ -8,7 +8,7 @@
 - [ ] 4. CI GitHub / GitLab
 - [x] 5. AppImage, puis Flatpak, puis Snap
 - [ ] 6. Construction en conteneur (`--container`)
-- [ ] 7. Dogfooding : PackagingOnLinux se package lui-même
+- [ ] 7. Dogfooding : PackagingOnLinux se package lui-même (fait pour la release : deb, rpm, tar.gz, AppImage, Flatpak, Snap, zip, setup.exe ; reste la CI de l'étape 4)
 - [x] 8. Nettoyage : suppression des anciens scripts bash (`scripts/` et le script de purge), mise à jour du README
 - [ ] 9. Langue de l'interface : anglais et français, au choix dans les paramètres
 - [x] 10. Windows : installeur `.exe` (NSIS) et archive portable `.zip`, construits depuis Linux
