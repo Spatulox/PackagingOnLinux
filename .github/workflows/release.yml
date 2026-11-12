@@ -1,0 +1,126 @@
+# Pushing a tag vX.Y.Z tests the project, builds every package with version X.Y.Z
+# (whatever packaging.toml says) and publishes them as the GitHub release vX.Y.Z:
+# deb, rpm, tar.gz, Windows installer (setup.exe) and Windows portable zip.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - id: version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # Same rule as AppSpec.validate(): deb and rpm need a leading digit, rpm forbids "-".
+          if [[ ! "$version" =~ ^[0-9][0-9A-Za-z.+~]*$ ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME is not a valid version (expected vX.Y.Z, no '-')"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libegl1 libxkbcommon0 libfontconfig1 desktop-file-utils nsis
+      - run: pip install -e '.[gui,test]'
+      - run: pytest
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+  # A Python + Qt app can't be frozen into an .exe from Linux: PyInstaller runs here and
+  # the resulting folder ([windows] dir in packaging.toml) is packaged by the linux job.
+  windows-app:
+    needs: version
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install PySide6 pyinstaller
+      - name: Set the version from the tag
+        run: sed -i 's/^__version__ = .*/__version__ = "${{ needs.version.outputs.version }}"/' packagingonlinux/__init__.py
+      - name: Freeze with PyInstaller
+        run: >
+          pyinstaller --noconfirm --windowed --name PackagingOnLinux
+          --icon packaging/packagingonlinux.ico --collect-submodules packagingonlinux --exclude-module PyQt6
+          --workpath build/pyinstaller --distpath build/windows
+          packaging/windows/launcher.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-app
+          path: build/windows/
+          if-no-files-found: error
+          retention-days: 1
+
+  linux:
+    needs: [version, test, windows-app]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends nsis
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows-app
+          path: build/windows
+      - name: Set the package version from the tag
+        run: sed -i 's/^version = .*/version = "${{ needs.version.outputs.version }}"/' packaging.toml
+      - run: python3 -m packagingonlinux build -f deb,tarball,zip,nsis -o dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pkg-linux
+          path: dist/*
+          if-no-files-found: error
+
+  rpm:
+    needs: [version, test]
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - run: dnf install -y rpm-build python3 findutils sed
+      - uses: actions/checkout@v7
+      - name: Set the package version from the tag
+        run: sed -i 's/^version = .*/version = "${{ needs.version.outputs.version }}"/' packaging.toml
+      - run: python3 -m packagingonlinux build -f rpm -o dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pkg-rpm
+          path: dist/*.rpm
+          if-no-files-found: error
+
+  release:
+    needs: [version, linux, rpm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: pkg-*
+          path: dist
+          merge-multiple: true
+      - run: ls -l dist
+      - run: >
+          gh release create "$GITHUB_REF_NAME" dist/*
+          --title "PackagingOnLinux ${{ needs.version.outputs.version }}"
+          --generate-notes --verify-tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}

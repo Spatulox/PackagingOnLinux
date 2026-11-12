@@ -25,6 +25,14 @@ dir = "build/app"
 exec = "bin/packagingonlinux"
 icon = "packaging/packagingonlinux.svg"
 
+[windows]
+# A Python + Qt app can't be frozen into an .exe from Linux: the release workflow
+# (.github/workflows/release.yml) runs PyInstaller on Windows to make this folder,
+# then builds the zip and nsis formats from it on Linux.
+dir = "build/windows/PackagingOnLinux"
+exec = "PackagingOnLinux.exe"
+icon = "packaging/packagingonlinux.ico"
+
 [deps]
 # Pure Python: no ELF to scan. PyQt6 is the GUI toolkit packaged by
 # distros (PySide6 is used instead when installed, e.g. in a dev venv).
