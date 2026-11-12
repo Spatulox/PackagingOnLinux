@@ -35,6 +35,22 @@ def test_roundtrip_keeps_everything(hello_spec, hello_project):
     assert "[files]" not in text and "[build]" not in text
 
 
+def test_flatpak_options_roundtrip(hello_spec, hello_project):
+    config.save(hello_spec, hello_project)
+    assert "[flatpak]" not in hello_project.read_text()  # defaults are not written
+    hello_spec.flatpak.runtime_version = "25.08"
+    hello_spec.flatpak.finish_args = []
+    config.save(hello_spec, hello_project)
+    assert '[flatpak]\nruntime_version = "25.08"\nfinish_args = []\n' in hello_project.read_text()
+    assert config.load(hello_project).flatpak == hello_spec.flatpak
+
+
+def test_flatpak_unknown_key_rejected(hello_project):
+    hello_project.write_text(hello_project.read_text() + '\n[flatpak]\nruntimeversion = "25.08"\n')
+    with pytest.raises(config.ConfigError, match="runtimeversion"):
+        config.load(hello_project)
+
+
 def test_old_files_and_build_sections_are_read_as_linux(tmp_path):
     spec = config.from_dict({
         "app": {"id": "org.example.Old", "name": "Old", "version": "1", "summary": "s"},

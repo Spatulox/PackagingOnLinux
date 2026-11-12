@@ -7,6 +7,7 @@ A release is published only for a version that has a section in this file.
 
 ### Added
 - AppImage format (`appimage`).
+- Flatpak format (`flatpak`), with its runtime and sandbox permissions in the new `[flatpak]` section.
 
 ## [0.1.3]
 

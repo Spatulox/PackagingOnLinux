@@ -46,7 +46,8 @@ packagingonlinux/            # le code de l'outil, rangé par plateforme
     staging.py               # arbre FHS commun (usr/bin, .desktop, icônes hicolor, metainfo)
     deb.py  rpm.py  tarball.py
     appimage.py              # AppDir + mksquashfs + runtime type2
-    flatpak.py  snap.py      # à venir
+    flatpak.py               # manifeste + flatpak-builder + build-bundle
+    snap.py                  # à venir
   windows/
     pe.py                    # architecture depuis l'en-tête PE d'un .exe
     ico.py                   # icône .ico en Python pur
@@ -134,7 +135,7 @@ dir = "dist"
 | rpm | `rpmbuild -bb`, topdir temporaire | les dépendances `.so` sont détectées automatiquement par rpm (AutoReq) ; vérification avec `rpmlint` | fait |
 | tar.gz | Python `tarfile` | solution de repli universelle | fait |
 | AppImage | `mksquashfs` + runtime type2 (release épinglée, vérifiée par sha256, téléchargée dans `~/.cache/packagingonlinux/`, ou `$PACKAGINGONLINUX_APPIMAGE_RUNTIME` hors ligne) | AppDir = staging + `AppRun`, `.desktop` et icône à la racine. Ni `appimagetool` ni FUSE pour construire. Les libs GTK/WebKit ne sont pas embarquées (option `linuxdeploy` plus tard) | fait |
-| Flatpak | `flatpak-builder` + `flatpak build-bundle` | manifest généré, sortie `.flatpak`. En CI : conteneur `ghcr.io/flathub-infra/flatpak-github-actions`. Nécessite une icône carrée | à faire |
+| Flatpak | `flatpak-builder` + `flatpak build-bundle` | manifeste généré (un module `simple` qui copie le staging dans `/app`), sortie `.flatpak` qui renvoie vers Flathub pour le runtime. Runtime et permissions dans `[flatpak]` (par défaut `org.freedesktop.Platform`, affichage + GPU, pas d'accès aux fichiers). Nécessite une icône carrée | fait |
 | Snap | `snapcraft --destructive-mode` dans un conteneur Ubuntu | confinement `strict` + extension `gnome` si GTK, sinon `classic` | à faire |
 | zip (Windows) | Python `zipfile` | version portable, sans installation | fait |
 | nsis (Windows) | `makensis` | installeur `setup.exe` par utilisateur, sans droits admin | fait |

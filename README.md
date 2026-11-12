@@ -8,7 +8,8 @@ Package any prebuilt application into several Linux distribution formats, and in
 | rpm | done |
 | tar.gz | done |
 | AppImage | done |
-| Flatpak, Snap | planned |
+| Flatpak | done |
+| Snap | planned |
 | Windows installer (`setup.exe`, NSIS) | done |
 | Windows portable `.zip` | done |
 
@@ -59,6 +60,8 @@ A failing format does not stop the others; errors are listed at the end.
 
 The `appimage` format needs `mksquashfs` (`squashfs-tools`). The first build downloads the AppImage runtime (a pinned release, checked against its sha256) into `~/.cache/packagingonlinux/`; offline, download it yourself and set `PACKAGINGONLINUX_APPIMAGE_RUNTIME` to its path. The app's libraries are not bundled: like the tar.gz, the AppImage uses those of the user's system.
 
+The `flatpak` format needs `flatpak` and `flatpak-builder` (plus `librsvg2-common` for an SVG icon), and a square icon. The first build installs the runtime and its SDK for the current user from Flathub. The app runs on that runtime, in a sandbox: `[flatpak] finish_args` lists what it may access (by default the display and the GPU, not the user's files; add `--filesystem=home`, `--share=network`… as needed). Install the result with `flatpak install --user --bundle <file>.flatpak`.
+
 ## `packaging.toml`
 
 The GUI, the CLI and CI all read the same file, so you can set a project up in the GUI, commit the file, and let CI produce the same packages. Paths are relative to the file.
@@ -87,6 +90,12 @@ icon = "icons/myapp.ico"          # optional: .ico or square PNG ≤ 256 px, els
 auto = true                       # detect shared library dependencies
 deb = ["libgtk-3-0"]              # extra dependencies, per format
 rpm = ["gtk3"]
+
+[flatpak]                         # optional, these are the defaults
+runtime = "org.freedesktop.Platform"
+runtime_version = "26.08"
+sdk = ""                          # empty: the runtime's SDK (org.freedesktop.Sdk)
+finish_args = ["--share=ipc", "--socket=wayland", "--socket=fallback-x11", "--device=dri"]
 
 [output]
 formats = ["deb", "rpm", "tarball", "zip", "nsis"]

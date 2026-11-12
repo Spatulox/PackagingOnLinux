@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 from packagingonlinux.linux import elf
 from packagingonlinux.windows import pe
-from packagingonlinux.config import COMMON_LICENSES, MAIN_CATEGORIES, AppSpec, Target, suggest_id
+from packagingonlinux.config import (
+    COMMON_LICENSES, MAIN_CATEGORIES, AppSpec, FlatpakOptions, Target, suggest_id,
+)
 from packagingonlinux.gui.qt import (
     QCheckBox, QComboBox, QFileDialog, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
     QPixmap, QPlainTextEdit, QPushButton, Qt, QTabWidget, QVBoxLayout, QWidget, Signal,
@@ -218,6 +221,7 @@ class AppForm(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._id_auto = True
+        self._flatpak = FlatpakOptions()
 
         # --- application metadata
         self.name = QLineEdit()
@@ -319,6 +323,8 @@ class AppForm(QWidget):
     # ---- AppSpec <-> widgets --------------------------------------------------
     def set_spec(self, spec: AppSpec) -> None:
         self._id_auto = False
+        # Per-format options have no widget yet: keep them so that saving does not drop them.
+        self._flatpak = spec.flatpak
         self.name.setText(spec.name)
         self.app_id.setText(spec.id)
         self.version.setText(spec.version)
@@ -351,6 +357,7 @@ class AppForm(QWidget):
             deps_auto=self.deps_auto.isChecked(),
             deps_deb=_split(self.deps_deb.text()),
             deps_rpm=_split(self.deps_rpm.text()),
+            flatpak=copy.deepcopy(self._flatpak),
             formats=formats,
             output_dir=output_dir,
             base_dir=base_dir,
