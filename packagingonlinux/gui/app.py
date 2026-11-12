@@ -11,13 +11,15 @@ from packagingonlinux.gui.form import AppForm, PathField
 from packagingonlinux.gui.formats import FormatsPanel
 from packagingonlinux.gui.qt import (
     QAction, QApplication, QDesktopServices, QFileDialog, QFontDatabase, QFormLayout, QHBoxLayout,
-    QKeySequence, QMainWindow, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSplitter,
+    QIcon, QKeySequence, QMainWindow, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSplitter,
     Qt, QToolButton, QUrl, QVBoxLayout, QWidget,
 )
 from packagingonlinux.gui.recent import RecentFiles, default_settings
 from packagingonlinux.gui.worker import BuildWorker
 
 TOML_FILTER = "Configuration PackagingOnLinux (packaging.toml *.toml)"
+# [app] id in the root packaging.toml: the installed .desktop file and icon are named after it.
+APP_ID = "io.github.spatulox.PackagingOnLinux"
 
 
 class MainWindow(QMainWindow):
@@ -240,11 +242,25 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
 
 
+def identify_app(app: QApplication) -> None:
+    """Let the desktop match our windows to the installed .desktop file, for the dock icon.
+
+    On Wayland the window's app_id comes from desktopFileName. On X11, GNOME matches the
+    WM_CLASS class against the .desktop file names, and Qt takes that class from the
+    application name, so it must be the app id too (not "PackagingOnLinux"). The window
+    icon from the theme is the fallback for desktops that match neither.
+    """
+    app.setApplicationName(APP_ID)
+    app.setDesktopFileName(APP_ID)
+    icon = QIcon.fromTheme(APP_ID)
+    if not icon.isNull():
+        app.setWindowIcon(icon)
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     app = QApplication.instance() or QApplication([sys.argv[0]])
-    app.setApplicationName("PackagingOnLinux")
-    app.setDesktopFileName("io.github.spatulox.PackagingOnLinux")
+    identify_app(app)
     window = MainWindow(Path(argv[0]) if argv else None)
     window.show()
     return app.exec()

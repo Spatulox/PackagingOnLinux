@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+from pathlib import Path
 
 import pytest
 
@@ -169,3 +170,17 @@ def test_open_toolbar_button_has_recent_dropdown(window):
     buttons = [b for b in window.findChildren(QToolButton) if b.menu() is window.recent_menu]
     assert len(buttons) == 1
     assert buttons[0].popupMode() == QToolButton.ToolButtonPopupMode.MenuButtonPopup
+
+
+def test_app_id_matches_desktop_file(qapp):
+    """The dock icon needs WM_CLASS (X11) and app_id (Wayland) to equal the .desktop file id."""
+    root = config.load(Path(__file__).resolve().parent.parent / "packaging.toml")
+    assert app.APP_ID == root.id
+    name, desktop = qapp.applicationName(), qapp.desktopFileName()
+    try:
+        app.identify_app(qapp)
+        assert qapp.applicationName() == root.id
+        assert qapp.desktopFileName() == root.id
+    finally:
+        qapp.setApplicationName(name)
+        qapp.setDesktopFileName(desktop)
