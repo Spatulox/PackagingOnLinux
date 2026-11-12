@@ -11,7 +11,7 @@ Package any prebuilt application into several Linux distribution formats, and in
 | Windows installer (`setup.exe`, NSIS) | done |
 | Windows portable `.zip` | done |
 
-The input is software that is **already compiled** (a binary or an install folder), one per platform. An optional build command per platform can compile it right before packaging. The roadmap is in [`PLAN.md`](PLAN.md) (French).
+The input is software that is **already compiled** (a binary or an install folder), one per platform. An optional build command per platform can compile it right before packaging. The roadmap is in [`docs/PLAN.md`](docs/PLAN.md) (French).
 
 Inspired by [casey-SK/helloWorld-deb-rpm-flatpak-appImage](https://github.com/casey-SK/helloWorld-deb-rpm-flatpak-appImage).
 
