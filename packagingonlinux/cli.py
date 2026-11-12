@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import argparse
 import sys
-import tempfile
 from pathlib import Path
 
 from packagingonlinux import __version__, config, core
 from packagingonlinux.config import ConfigError
 from packagingonlinux.core import BACKENDS
 from packagingonlinux.linux import staging as linux_staging
-from packagingonlinux.runner import CommandError
+from packagingonlinux.runner import CommandError, capture, temp_dir, which
 from packagingonlinux.windows import staging as windows_staging
 
 
@@ -66,10 +65,8 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
 def _check_linux(spec: config.AppSpec) -> bool:
     """Stage the Linux target and run the freedesktop validators. Returns True on failure."""
-    import shutil
-    import subprocess
     failed = False
-    with tempfile.TemporaryDirectory() as tmp:
+    with temp_dir() as tmp:
         stage = Path(tmp)
         for w in linux_staging.build_stage(spec, stage):
             print(f"warning: {w}")
@@ -79,10 +76,10 @@ def _check_linux(spec: config.AppSpec) -> bool:
                               str(stage / f"usr/share/metainfo/{spec.id}.metainfo.xml")]),
         ]
         for tool, tool_args in validators:
-            if not shutil.which(tool):
+            if not which(tool):
                 print(f"skip: {tool} not installed")
                 continue
-            proc = subprocess.run([tool, *tool_args], capture_output=True, text=True)
+            proc = capture([tool, *tool_args])
             output = (proc.stdout + proc.stderr).strip()
             # appstreamcli also exits non-zero on mere warnings: only "E:" lines are errors.
             bad = proc.returncode != 0 and (tool != "appstreamcli" or "\nE: " in "\n" + output)
@@ -107,7 +104,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         arch = spec.linux_arch
         targets.append(f"linux {arch[0]}/{arch[1]}")
     if spec.windows is not None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with temp_dir() as tmp:
             try:
                 for w in windows_staging.build_stage(spec, Path(tmp)):
                     print(f"warning: {w}")

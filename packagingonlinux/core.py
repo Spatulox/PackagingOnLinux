@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -17,7 +16,7 @@ from packagingonlinux.linux.flatpak import FlatpakBackend
 from packagingonlinux.linux.rpm import RpmBackend
 from packagingonlinux.linux.snap import SnapBackend
 from packagingonlinux.linux.tarball import TarballBackend
-from packagingonlinux.runner import CommandError, Log, run
+from packagingonlinux.runner import CommandError, Log, run, temp_dir
 from packagingonlinux.windows import staging as windows_staging
 from packagingonlinux.windows.nsis import NsisBackend
 from packagingonlinux.windows.zip import ZipBackend
@@ -104,7 +103,7 @@ def build(spec: AppSpec, formats: list[str] | None = None, log: Log = print) -> 
     result = BuildResult()
 
     spec.output_dir.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="packagingonlinux-") as tmp:
+    with temp_dir() as tmp:
         for platform in PLATFORMS:
             names = [f for f in formats if BACKENDS[f].platform == platform]
             if not names:
