@@ -1,5 +1,5 @@
 # MyGesClient (Wails app). Put the prebuilt binary at the repo root, then:
-#   python3 -m compileonlinux build -c examples/mygesclient/packaging.toml
+#   python3 -m packagingonlinux build -c examples/mygesclient/packaging.toml
 
 [app]
 id = "io.github.spatulox.MyGesClient"

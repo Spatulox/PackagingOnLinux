@@ -6,9 +6,9 @@ import tarfile
 
 import pytest
 
-from compileonlinux import core, staging
-from compileonlinux.backends.base import BuildContext
-from compileonlinux.backends.rpm import spec_file
+from packagingonlinux import core, staging
+from packagingonlinux.backends.base import BuildContext
+from packagingonlinux.backends.rpm import spec_file
 from tests.conftest import make_png
 
 
@@ -77,7 +77,7 @@ def test_build_deb_and_tarball(hello_spec):
 
 
 def test_missing_tool_is_reported_not_raised(hello_spec, monkeypatch):
-    from compileonlinux.backends import BACKENDS
+    from packagingonlinux.backends import BACKENDS
     monkeypatch.setattr(BACKENDS["rpm"], "required_tools", ("definitely-not-installed-tool",))
     result = core.build(hello_spec, ["rpm", "tarball"], log=lambda _: None)
     assert "rpm" in result.errors and "tarball" in result.packages

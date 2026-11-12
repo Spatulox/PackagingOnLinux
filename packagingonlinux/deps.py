@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from compileonlinux import elf
+from packagingonlinux import elf
 
 # Packages present on every Debian-based system: never worth listing.
 _DEB_ESSENTIAL = {

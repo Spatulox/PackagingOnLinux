@@ -4,8 +4,8 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from compileonlinux.config import AppSpec
-from compileonlinux.runner import Log
+from packagingonlinux.config import AppSpec
+from packagingonlinux.runner import Log
 
 
 @dataclass

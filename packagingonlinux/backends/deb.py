@@ -4,9 +4,9 @@ import hashlib
 import shutil
 from pathlib import Path
 
-from compileonlinux import deps, staging
-from compileonlinux.backends.base import Backend, BuildContext
-from compileonlinux.runner import run
+from packagingonlinux import deps, staging
+from packagingonlinux.backends.base import Backend, BuildContext
+from packagingonlinux.runner import run
 
 _SECTIONS = {
     "AudioVideo": "video", "Audio": "sound", "Video": "video", "Development": "devel",

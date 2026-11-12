@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from compileonlinux import core
-from compileonlinux.config import AppSpec
-from compileonlinux.gui.qt import QThread, Signal
+from packagingonlinux import core
+from packagingonlinux.config import AppSpec
+from packagingonlinux.gui.qt import QThread, Signal
 
 
 class BuildWorker(QThread):

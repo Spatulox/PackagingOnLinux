@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from compileonlinux import config
+from packagingonlinux import config
 
 
 def make_png(path: Path, width: int, height: int) -> Path:
@@ -26,7 +26,7 @@ def make_png(path: Path, width: int, height: int) -> Path:
 def hello_project(tmp_path: Path) -> Path:
     """A tiny project: shell-script app + 64x64 icon + packaging.toml. Returns the config path."""
     app = tmp_path / "hello"
-    app.write_text("#!/bin/sh\necho 'Hello from CompileOnLinux'\n")
+    app.write_text("#!/bin/sh\necho 'Hello from PackagingOnLinux'\n")
     app.chmod(0o755)
     make_png(tmp_path / "hello.png", 64, 64)
     (tmp_path / "packaging.toml").write_text(

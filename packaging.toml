@@ -1,12 +1,12 @@
-# CompileOnLinux packaging itself. From the repo root:
-#   python3 -m compileonlinux build
+# PackagingOnLinux packaging itself. From the repo root:
+#   python3 -m packagingonlinux build
 # The build command assembles build/app/ (the Python package + a launcher); it is
-# installed to /usr/lib/compileonlinux/ with /usr/bin/compileonlinux pointing to
-# bin/compileonlinux (no arguments = GUI, otherwise CLI).
+# installed to /usr/lib/packagingonlinux/ with /usr/bin/packagingonlinux pointing to
+# bin/packagingonlinux (no arguments = GUI, otherwise CLI).
 
 [app]
-id = "io.github.spatulox.CompileOnLinux"
-name = "CompileOnLinux"
+id = "io.github.spatulox.PackagingOnLinux"
+name = "PackagingOnLinux"
 version = "0.1.1"
 summary = "Package any prebuilt app for every Linux format"
 description = """
@@ -15,17 +15,17 @@ and more packages. Works on any distribution and desktop environment, and
 runs unattended in GitHub/GitLab CI."""
 license = "GPL-3.0-only"
 maintainer = "Spatulox"
-homepage = "https://github.com/Spatulox/CompileOnLinux"
+homepage = "https://github.com/Spatulox/PackagingOnLinux"
 categories = ["Development"]
 
 [files]
 dir = "build/app"
-exec = "bin/compileonlinux"
-icon = "packaging/compileonlinux.svg"
+exec = "bin/packagingonlinux"
+icon = "packaging/packagingonlinux.svg"
 
 [build]
 # $APP_VERSION (the version above) is stamped into the copied __init__.py.
-command = 'rm -rf build/app && mkdir -p build/app && cp -r compileonlinux build/app/ && find build/app -name __pycache__ -prune -exec rm -rf {} + && sed -i "s/^__version__ = .*/__version__ = \"$APP_VERSION\"/" build/app/compileonlinux/__init__.py && install -D -m 755 packaging/compileonlinux build/app/bin/compileonlinux'
+command = 'rm -rf build/app && mkdir -p build/app && cp -r packagingonlinux build/app/ && find build/app -name __pycache__ -prune -exec rm -rf {} + && sed -i "s/^__version__ = .*/__version__ = \"$APP_VERSION\"/" build/app/packagingonlinux/__init__.py && install -D -m 755 packaging/packagingonlinux build/app/bin/packagingonlinux'
 
 [deps]
 # Pure Python: no ELF to scan. PyQt6 is the GUI toolkit packaged by

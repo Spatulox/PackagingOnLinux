@@ -7,10 +7,10 @@ import sys
 import tempfile
 from pathlib import Path
 
-from compileonlinux import __version__, config, core, staging
-from compileonlinux.backends import BACKENDS
-from compileonlinux.config import ConfigError
-from compileonlinux.runner import CommandError
+from packagingonlinux import __version__, config, core, staging
+from packagingonlinux.backends import BACKENDS
+from packagingonlinux.config import ConfigError
+from packagingonlinux.runner import CommandError
 
 
 def _ask(prompt: str, default: str = "") -> str:
@@ -43,7 +43,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         formats=[f.strip() for f in _ask("Formats", "deb,rpm").split(",") if f.strip()],
     )
     config.save(spec, path)
-    print(f"Wrote {path}. Build with: compileonlinux build -c {path}")
+    print(f"Wrote {path}. Build with: packagingonlinux build -c {path}")
     for p in spec.validate():
         print(f"warning: {p}")
     return 0
@@ -111,16 +111,16 @@ def cmd_build(args: argparse.Namespace) -> int:
 
 def cmd_gui(args: argparse.Namespace) -> int:
     try:
-        from compileonlinux.gui.app import main as gui_main
+        from packagingonlinux.gui.app import main as gui_main
     except ImportError as e:
-        print(f"GUI unavailable ({e}). Install it with: pip install 'compileonlinux[gui]'", file=sys.stderr)
+        print(f"GUI unavailable ({e}). Install it with: pip install 'packagingonlinux[gui]'", file=sys.stderr)
         return 1
     return gui_main([args.config] if args.config else [])
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="compileonlinux",
+        prog="packagingonlinux",
         description="Package a prebuilt Linux application as " + ", ".join(BACKENDS) + ".",
     )
     parser.add_argument("--version", action="version", version=__version__)

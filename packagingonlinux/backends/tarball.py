@@ -3,7 +3,7 @@ from __future__ import annotations
 import tarfile
 from pathlib import Path
 
-from compileonlinux.backends.base import Backend, BuildContext
+from packagingonlinux.backends.base import Backend, BuildContext
 
 
 class TarballBackend(Backend):

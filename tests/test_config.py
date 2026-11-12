@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from compileonlinux import config, elf
-from compileonlinux.config import ConfigError
+from packagingonlinux import config, elf
+from packagingonlinux.config import ConfigError
 
 
 def test_load_resolves_paths_relative_to_config(hello_spec, hello_project):

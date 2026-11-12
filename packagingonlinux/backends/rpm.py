@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from compileonlinux import staging
-from compileonlinux.backends.base import Backend, BuildContext
-from compileonlinux.runner import run
+from packagingonlinux import staging
+from packagingonlinux.backends.base import Backend, BuildContext
+from packagingonlinux.runner import run
 
 
 def _quote(path: str) -> str:

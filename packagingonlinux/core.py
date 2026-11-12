@@ -7,10 +7,10 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from compileonlinux import staging
-from compileonlinux.backends import BACKENDS, BuildContext
-from compileonlinux.config import AppSpec, ConfigError
-from compileonlinux.runner import CommandError, Log, run
+from packagingonlinux import staging
+from packagingonlinux.backends import BACKENDS, BuildContext
+from packagingonlinux.config import AppSpec, ConfigError
+from packagingonlinux.runner import CommandError, Log, run
 
 
 @dataclass
@@ -66,7 +66,7 @@ def build(spec: AppSpec, formats: list[str] | None = None, log: Log = print) -> 
         raise ConfigError("\n".join(problems))
 
     spec.output_dir.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="compileonlinux-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="packagingonlinux-") as tmp:
         stage = Path(tmp) / "stage"
         log("== staging")
         result.warnings += staging.build_stage(spec, stage)

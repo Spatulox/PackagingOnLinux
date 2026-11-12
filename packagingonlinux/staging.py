@@ -20,7 +20,7 @@ from datetime import date
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from compileonlinux.config import AppSpec
+from packagingonlinux.config import AppSpec
 
 HICOLOR_SIZES = {16, 22, 24, 32, 48, 64, 96, 128, 256, 512}
 

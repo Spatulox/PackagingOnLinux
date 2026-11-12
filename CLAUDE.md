@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-CompileOnLinux is a single-interface tool that packages any prebuilt software into Linux distribution formats (AppImage, Flatpak, Snap, deb, rpm, etc.). The user describes the app once, picks the formats, and gets all the packages. It must work on any distro and any desktop environment, and run unattended in GitHub/GitLab CI. Inspired by casey-SK/helloWorld-deb-rpm-flatpak-appImage.
+PackagingOnLinux is a single-interface tool that packages any prebuilt software into Linux distribution formats (AppImage, Flatpak, Snap, deb, rpm, etc.). The user describes the app once, picks the formats, and gets all the packages. It must work on any distro and any desktop environment, and run unattended in GitHub/GitLab CI. Inspired by casey-SK/helloWorld-deb-rpm-flatpak-appImage.
 
 The full roadmap and progress are in `PLAN.md` (French). Done so far: Python core, CLI, Qt GUI, deb/rpm/tar.gz backends. Still to do: CI templates (`ci/`), AppImage, Flatpak and Snap backends, `--container` builds, then removing the legacy `scripts/` and `purge_build_install_myges.sh`.
 
@@ -17,13 +17,13 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[gui,test]'
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest                       # all tests (GUI tests need the env var headless)
 .venv/bin/pytest tests/test_build.py::test_build_deb_and_tarball  # a single test
 
-python3 -m compileonlinux doctor                       # which formats this machine can build
-python3 -m compileonlinux check -c path/packaging.toml # validate config + desktop-file-validate + appstreamcli
-python3 -m compileonlinux build -c path/packaging.toml [-f deb,rpm] [-o outdir]
-.venv/bin/compileonlinux-gui [packaging.toml]          # or: python3 -m compileonlinux gui
+python3 -m packagingonlinux doctor                       # which formats this machine can build
+python3 -m packagingonlinux check -c path/packaging.toml # validate config + desktop-file-validate + appstreamcli
+python3 -m packagingonlinux build -c path/packaging.toml [-f deb,rpm] [-o outdir]
+.venv/bin/packagingonlinux-gui [packaging.toml]          # or: python3 -m packagingonlinux gui
 ```
 
-The core needs only Python ≥ 3.11 with no dependencies (`tomllib`). The GUI runs on PySide6 (the pip `[gui]` extra) or PyQt6 (what distros package, and what the self-built deb/rpm depend on). GUI modules import Qt names only from `compileonlinux/gui/qt.py`, never from PySide6/PyQt6 directly, and must use fully scoped enums (`Qt.AlignmentFlag.AlignCenter`), which PyQt6 requires. Don't import Qt outside `compileonlinux/gui/`. rpm builds can be tested from a non-rpm host with `docker run --rm -v "$PWD":/src:ro fedora:latest` (install `rpm-build python3`). Docker Desktop cannot mount `/tmp`, so keep outputs inside the container.
+The core needs only Python ≥ 3.11 with no dependencies (`tomllib`). The GUI runs on PySide6 (the pip `[gui]` extra) or PyQt6 (what distros package, and what the self-built deb/rpm depend on). GUI modules import Qt names only from `packagingonlinux/gui/qt.py`, never from PySide6/PyQt6 directly, and must use fully scoped enums (`Qt.AlignmentFlag.AlignCenter`), which PyQt6 requires. Don't import Qt outside `packagingonlinux/gui/`. rpm builds can be tested from a non-rpm host with `docker run --rm -v "$PWD":/src:ro fedora:latest` (install `rpm-build python3`). Docker Desktop cannot mount `/tmp`, so keep outputs inside the container.
 
 ## Commits
 

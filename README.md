@@ -1,4 +1,4 @@
-# CompileOnLinux
+# PackagingOnLinux
 
 This idea comes from [this repository](https://github.com/casey-SK/helloWorld-deb-rpm-flatpak-appImage) from [casey-SK](https://github.com/casey-SK)
 

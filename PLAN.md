@@ -1,4 +1,4 @@
-# Plan : CompileOnLinux, outil de packaging multi-formats Linux + Windows (Python + CI)
+# Plan : PackagingOnLinux, outil de packaging multi-formats Linux + Windows (Python + CI)
 
 ## Avancement
 
@@ -8,7 +8,7 @@
 - [ ] 4. CI GitHub / GitLab
 - [ ] 5. AppImage, puis Flatpak, puis Snap
 - [ ] 6. Construction en conteneur (`--container`)
-- [ ] 7. Dogfooding : CompileOnLinux se package lui-même
+- [ ] 7. Dogfooding : PackagingOnLinux se package lui-même
 - [ ] 8. Nettoyage : suppression de `scripts/` et `purge_build_install_myges.sh`, mise à jour du README
 - [ ] 9. Langue de l'interface : anglais et français, au choix dans les paramètres
 - [ ] 10. Windows : installeur `.exe` (NSIS) et archive portable `.zip`, construits depuis Linux
@@ -21,7 +21,7 @@ Au départ, le repo contenait deux scripts bash (`scripts/deb.sh`, `scripts/rpm.
 
 ## Choix techniques
 
-- **Python ≥ 3.11, zéro dépendance pour le cœur** : `tomllib` pour la config, `argparse`, `subprocess`, `shutil`. On l'installe avec `pipx install .`, ou on le lance sans installation via `python3 -m compileonlinux`.
+- **Python ≥ 3.11, zéro dépendance pour le cœur** : `tomllib` pour la config, `argparse`, `subprocess`, `shutil`. On l'installe avec `pipx install .`, ou on le lance sans installation via `python3 -m packagingonlinux`.
 - **Interface graphique Qt (PySide6 ou PyQt6)** : c'est la porte d'entrée principale. Elle rend simple l'ajout d'un logiciel : on choisit le binaire, l'icône, on remplit nom/version/description, on coche les formats, puis on clique sur « Construire ». Qt s'affiche correctement sur GNOME, KDE, XFCE, etc., sous X11 comme sous Wayland. Elle tourne avec PySide6 (dépendance optionnelle `pip install .[gui]`) ou PyQt6 (paquet `python3-pyqt6` des distributions), pour que la CLI et la CI restent sans dépendance.
 - **Config déclarative `packaging.toml`**, que la GUI lit et écrit. C'est le format d'échange entre la GUI, la CLI et la CI : on configure un projet visuellement, on committe le `packaging.toml`, et la CI produit les mêmes paquets.
 - **Indépendant du bureau** : uniquement des standards freedesktop. Le `.desktop` est validé avec `desktop-file-validate`, l'icône va dans le thème `hicolor` (`usr/share/icons/hicolor/<taille>/apps/<id>.png`), et un AppStream `metainfo.xml` est généré (requis par Flatpak, utile pour GNOME Logiciels comme pour KDE Discover). Aucun `sudo` ni `gtk-update-icon-cache` en dur dans les scripts de mainteneur : deb et rpm ont déjà des triggers système pour ça.
@@ -31,7 +31,7 @@ Au départ, le repo contenait deux scripts bash (`scripts/deb.sh`, `scripts/rpm.
 ## Architecture
 
 ```
-compileonlinux/
+packagingonlinux/
   __main__.py, cli.py        # sous-commandes: init, doctor, check, build, gui
   config.py                  # lecture + validation de packaging.toml -> AppSpec (dataclass)
   elf.py                     # détection de l'architecture depuis l'en-tête ELF
@@ -44,14 +44,14 @@ compileonlinux/
     deb.py  rpm.py  tarball.py
     appimage.py  flatpak.py  snap.py      # à venir
   gui/
-    app.py                   # QMainWindow, point d'entrée `compileonlinux-gui`
+    app.py                   # QMainWindow, point d'entrée `packagingonlinux-gui`
     form.py                  # formulaire AppSpec (champs, sélecteurs de fichiers, aperçu de l'icône)
     formats.py               # cases à cocher des formats + état « outil dispo/manquant » (issu de doctor)
     worker.py                # QThread qui lance core.build et diffuse les logs en direct
 ci/                                       # à venir
   github/action.yml          # action composite réutilisable
   github/example-workflow.yml
-  gitlab/compileonlinux.gitlab-ci.yml   # template à inclure avec `include:`
+  gitlab/packagingonlinux.gitlab-ci.yml   # template à inclure avec `include:`
 examples/mygesclient/packaging.toml
 tests/                       # pytest + pytest-qt, app fixture "hello" (script shell + icône)
 ```
@@ -64,7 +64,7 @@ Principes clés :
 
 Écran principal de la GUI (une seule fenêtre) :
 ```
-┌ CompileOnLinux ─────────────────────────────────────────┐
+┌ PackagingOnLinux ─────────────────────────────────────────┐
 │ [Nouveau] [Ouvrir] [Enregistrer] [Enregistrer sous]      │
 │ Application : Nom / ID / Version / Résumé / Description  │
 │               Mainteneur / Licence / Site web / Catégorie│
@@ -131,23 +131,23 @@ L'architecture est détectée automatiquement à partir de l'en-tête ELF (amd64
 4. **CI** : action GitHub composite et template GitLab. Un job par format (matrice), chacun dans son image dédiée ; les paquets sont publiés comme artefacts, et attachés à la release quand un tag est poussé.
 5. **AppImage**, puis **Flatpak**, puis **Snap** (du plus simple au plus contraignant en CI). Chaque nouveau backend apparaît automatiquement dans la GUI.
 6. **Option `--container`** (case à cocher dans la GUI) pour construire tous les formats localement depuis n'importe quelle distro.
-7. **Dogfooding** : CompileOnLinux se package lui-même (AppImage et Flatpak de la GUI) via son propre `packaging.toml` et sa propre CI.
+7. **Dogfooding** : PackagingOnLinux se package lui-même (AppImage et Flatpak de la GUI) via son propre `packaging.toml` et sa propre CI.
 8. **Nettoyage** : suppression de `scripts/` et `purge_build_install_myges.sh`, mise à jour du README et de `CLAUDE.md`.
 9. **Langue de l'interface (EN / FR)** : voir la section dédiée plus bas.
 10. **Windows (.exe)** : voir la section dédiée plus bas.
 
 ## Langue de l'interface (EN / FR)
 
-- **Module `compileonlinux/i18n.py`** : un dictionnaire de traductions par langue (`en`, `fr`) et une fonction `tr("clé")`. Ajouter une langue revient à ajouter un dictionnaire, sans outil externe. Les fichiers `.ts`/`.qm` de Qt ne sont pas utilisés, car ils demandent `lupdate`/`lrelease` au moment de la construction.
+- **Module `packagingonlinux/i18n.py`** : un dictionnaire de traductions par langue (`en`, `fr`) et une fonction `tr("clé")`. Ajouter une langue revient à ajouter un dictionnaire, sans outil externe. Les fichiers `.ts`/`.qm` de Qt ne sont pas utilisés, car ils demandent `lupdate`/`lrelease` au moment de la construction.
 - **Tous les textes de la GUI passent par `tr()`** : libellés, infobulles, messages d'erreur et boîtes de dialogue. Les textes déjà écrits en dur en français dans `gui/` sont migrés.
-- **Menu « Paramètres → Langue / Language »** : le choix est enregistré avec `QSettings` (`~/.config/CompileOnLinux/`) et appliqué tout de suite, en reconstruisant les libellés sans redémarrer.
+- **Menu « Paramètres → Langue / Language »** : le choix est enregistré avec `QSettings` (`~/.config/PackagingOnLinux/`) et appliqué tout de suite, en reconstruisant les libellés sans redémarrer.
 - **Langue par défaut** : celle du système (`QLocale.system()`). L'anglais est utilisé pour toute langue non traduite.
 - **La CLI reste en anglais**, car sa sortie est destinée à la CI et aux journaux. Les messages d'erreur du cœur (validation de la config) passent aussi par `tr()`, pour s'afficher dans la langue choisie dans la GUI.
 - **Tests** : chaque clé existe dans toutes les langues (test automatique), et le changement de langue met à jour les libellés (pytest-qt).
 
 ## Windows (.exe)
 
-CompileOnLinux package des binaires **déjà compilés**. Un binaire Linux ne tourne pas sous Windows : il faut donc un binaire Windows en entrée. Beaucoup d'outils savent le produire depuis Linux, par exemple `wails build -platform windows/amd64`, `GOOS=windows go build`, `cargo build --target x86_64-pc-windows-gnu` ou PyInstaller sous Wine. Cette compilation se fait via la commande `[build]` existante, et l'outil ne gère pas lui-même les compilateurs.
+PackagingOnLinux package des binaires **déjà compilés**. Un binaire Linux ne tourne pas sous Windows : il faut donc un binaire Windows en entrée. Beaucoup d'outils savent le produire depuis Linux, par exemple `wails build -platform windows/amd64`, `GOOS=windows go build`, `cargo build --target x86_64-pc-windows-gnu` ou PyInstaller sous Wine. Cette compilation se fait via la commande `[build]` existante, et l'outil ne gère pas lui-même les compilateurs.
 
 - **Config** : nouvelle section optionnelle, indépendante des fichiers Linux :
   ```toml
@@ -177,7 +177,7 @@ CompileOnLinux package des binaires **déjà compilés**. Un binaire Linux ne to
   - `flatpak install --user --bundle *.flatpak` puis `flatpak run` ;
   - `snap install --dangerous *.snap` (runner Ubuntu GitHub) ;
   - dans tous les cas : `desktop-file-validate` et `appstreamcli validate` sur les fichiers générés.
-- Non-régression MyGesClient : `python3 -m compileonlinux build -c examples/mygesclient/packaging.toml --format deb`, puis installation et lancement.
+- Non-régression MyGesClient : `python3 -m packagingonlinux build -c examples/mygesclient/packaging.toml --format deb`, puis installation et lancement.
 
 ## Points connus
 

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from compileonlinux import elf
-from compileonlinux.config import COMMON_LICENSES, MAIN_CATEGORIES, AppSpec, suggest_id
-from compileonlinux.gui.qt import (
+from packagingonlinux import elf
+from packagingonlinux.config import COMMON_LICENSES, MAIN_CATEGORIES, AppSpec, suggest_id
+from packagingonlinux.gui.qt import (
     QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
     QPixmap, QPlainTextEdit, QPushButton, Qt, QVBoxLayout, QWidget, Signal,
 )

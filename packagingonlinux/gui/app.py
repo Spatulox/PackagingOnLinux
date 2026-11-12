@@ -4,18 +4,18 @@ import sys
 from pathlib import Path
 
 
-from compileonlinux import __version__, config
-from compileonlinux.config import ConfigError
-from compileonlinux.gui.form import AppForm, PathField
-from compileonlinux.gui.formats import FormatsPanel
-from compileonlinux.gui.qt import (
+from packagingonlinux import __version__, config
+from packagingonlinux.config import ConfigError
+from packagingonlinux.gui.form import AppForm, PathField
+from packagingonlinux.gui.formats import FormatsPanel
+from packagingonlinux.gui.qt import (
     QAction, QApplication, QDesktopServices, QFileDialog, QFontDatabase, QFormLayout, QHBoxLayout,
     QKeySequence, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSplitter, Qt,
     QUrl, QVBoxLayout, QWidget,
 )
-from compileonlinux.gui.worker import BuildWorker
+from packagingonlinux.gui.worker import BuildWorker
 
-TOML_FILTER = "Configuration CompileOnLinux (packaging.toml *.toml)"
+TOML_FILTER = "Configuration PackagingOnLinux (packaging.toml *.toml)"
 
 
 class MainWindow(QMainWindow):
@@ -99,7 +99,7 @@ class MainWindow(QMainWindow):
 
     def _update_title(self) -> None:
         name = str(self.config_path) if self.config_path else "nouvelle configuration"
-        self.setWindowTitle(f"CompileOnLinux {__version__} — {name}")
+        self.setWindowTitle(f"PackagingOnLinux {__version__} — {name}")
 
     def _base_dir(self) -> Path:
         return self.config_path.parent if self.config_path else Path.cwd()
@@ -207,8 +207,8 @@ class MainWindow(QMainWindow):
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     app = QApplication.instance() or QApplication([sys.argv[0]])
-    app.setApplicationName("CompileOnLinux")
-    app.setDesktopFileName("io.github.spatulox.CompileOnLinux")
+    app.setApplicationName("PackagingOnLinux")
+    app.setDesktopFileName("io.github.spatulox.PackagingOnLinux")
     window = MainWindow(Path(argv[0]) if argv else None)
     window.show()
     return app.exec()

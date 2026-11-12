@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from compileonlinux import core
-from compileonlinux.gui.qt import QCheckBox, QGridLayout, QGroupBox, QLabel
+from packagingonlinux import core
+from packagingonlinux.gui.qt import QCheckBox, QGridLayout, QGroupBox, QLabel
 
 
 class FormatsPanel(QGroupBox):

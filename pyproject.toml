@@ -3,7 +3,7 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "compileonlinux"
+name = "packagingonlinux"
 dynamic = ["version"]
 description = "Package any prebuilt Linux application as deb, rpm, AppImage, Flatpak, Snap... from one interface"
 readme = "README.md"
@@ -16,16 +16,16 @@ gui = ["PySide6>=6.5"]
 test = ["pytest>=7", "pytest-qt>=4"]
 
 [project.scripts]
-compileonlinux = "compileonlinux.cli:main"
+packagingonlinux = "packagingonlinux.cli:main"
 
 [project.gui-scripts]
-compileonlinux-gui = "compileonlinux.gui.app:main"
+packagingonlinux-gui = "packagingonlinux.gui.app:main"
 
 [tool.setuptools.dynamic]
-version = { attr = "compileonlinux.__version__" }
+version = { attr = "packagingonlinux.__version__" }
 
 [tool.setuptools.packages.find]
-include = ["compileonlinux*"]
+include = ["packagingonlinux*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

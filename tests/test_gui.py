@@ -4,11 +4,11 @@ import shutil
 
 import pytest
 
-pytest.importorskip("compileonlinux.gui.qt")
+pytest.importorskip("packagingonlinux.gui.qt")
 pytest.importorskip("pytestqt")
 
-from compileonlinux import config  # noqa: E402
-from compileonlinux.gui.app import MainWindow  # noqa: E402
+from packagingonlinux import config  # noqa: E402
+from packagingonlinux.gui.app import MainWindow  # noqa: E402
 
 
 @pytest.fixture
