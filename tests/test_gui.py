@@ -13,15 +13,21 @@ from packagingonlinux.gui import app  # noqa: E402
 from packagingonlinux.gui.app import MainWindow  # noqa: E402
 from packagingonlinux.gui.qt import QMessageBox, QSettings, QToolButton  # noqa: E402
 from packagingonlinux.gui.recent import MAX_RECENT, RecentFiles  # noqa: E402
-from packagingonlinux.gui.release import KEEP, ReleaseDialog  # noqa: E402
+from packagingonlinux.gui.release import ReleaseDialog  # noqa: E402
+from packagingonlinux.version import KEEP, next_version  # noqa: E402
 from tests.conftest import make_pe  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
 def release(monkeypatch):
-    """Answer the modal release dialog (a real one would block the test). Default: keep the version."""
+    """Answer the modal release dialog (a real one would block the test): a release type, or
+    None to cancel. Default: keep the version."""
     answer = {"value": KEEP}
-    monkeypatch.setattr(app, "ask_release", lambda parent, version: answer["value"])
+
+    def ask(parent, version):
+        return None if answer["value"] is None else next_version(version, answer["value"])
+
+    monkeypatch.setattr(app, "ask_release", ask)
     return answer
 
 
@@ -250,11 +256,41 @@ def test_release_dialog_choices(qtbot):
     assert dialog.buttons["fix"].text().endswith("1.2.3 → 1.2.4")
     assert dialog.buttons["minor"].text().endswith("1.2.3 → 1.3.0")
     assert dialog.buttons["major"].text().endswith("1.2.3 → 2.0.0")
+    assert dialog.version() == "1.2.4"
+    assert not dialog.number.isEnabled()  # no number for a final release
     dialog.buttons[KEEP].setChecked(True)
     assert dialog.choice() == KEEP
+    assert dialog.version() == "1.2.3"
+    assert "inchangée" in dialog.result.text()
 
 
-@pytest.mark.parametrize("accept,expected", [(True, "minor"), (False, None)])
+def test_release_dialog_stage(qtbot):
+    dialog = ReleaseDialog("1.2.3")
+    qtbot.addWidget(dialog)
+    dialog.buttons["minor"].setChecked(True)
+    dialog.stage.setCurrentIndex(dialog.stage.findData("beta"))
+    assert dialog.number.isEnabled()
+    assert dialog.version() == "1.3.0~beta1"
+    dialog.number.setValue(3)
+    assert dialog.version() == "1.3.0~beta3"
+    assert "1.3.0~beta3" in dialog.result.text()
+
+
+def test_release_dialog_from_prerelease(qtbot):
+    """From an rc, the default is the next rc; "Finale" turns it into the release."""
+    dialog = ReleaseDialog("1.3.0~rc1")
+    qtbot.addWidget(dialog)
+    assert dialog.choice() == KEEP
+    assert dialog.stage_choice() == "rc"
+    assert dialog.version() == "1.3.0~rc2"
+    dialog.stage.setCurrentIndex(dialog.stage.findData("release"))
+    assert dialog.version() == "1.3.0"
+    dialog.buttons["fix"].setChecked(True)
+    dialog.stage.setCurrentIndex(dialog.stage.findData("rc"))
+    assert dialog.version() == "1.3.1~rc1"
+
+
+@pytest.mark.parametrize("accept,expected", [(True, "1.3.0"), (False, None)])
 def test_ask_release_real_dialog(qtbot, accept, expected):
     from packagingonlinux.gui import release as release_module
     from packagingonlinux.gui.qt import QApplication, QTimer

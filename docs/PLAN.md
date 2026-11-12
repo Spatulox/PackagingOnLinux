@@ -56,7 +56,7 @@ packagingonlinux/            # le code de l'outil, rangé par plateforme
     form.py                  # formulaire AppSpec (champs, sélecteurs de fichiers, aperçu de l'icône)
     formats.py               # cases à cocher des formats + état « outil dispo/manquant » (issu de doctor)
     recent.py                # fichiers récemment ouverts (QSettings), menu Fichier > Ouvrir un fichier récent
-    release.py               # popup avant construction : type de release (fix/minor/major/aucune)
+    release.py               # popup avant construction : type de release (fix/minor/major/aucune) + étape (finale/rc/beta/alpha, version x.y.z~rcN)
     worker.py                # QThread qui lance core.build et diffuse les logs en direct
 ci/                                       # à venir
   github/action.yml          # action composite réutilisable

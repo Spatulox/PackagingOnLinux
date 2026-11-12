@@ -7,7 +7,6 @@ from pathlib import Path
 from packagingonlinux import __version__, config
 from packagingonlinux.core import BACKENDS
 from packagingonlinux.config import ConfigError
-from packagingonlinux.version import bump
 from packagingonlinux.gui.form import AppForm, PathField
 from packagingonlinux.gui.formats import FormatsPanel
 from packagingonlinux.gui.qt import (
@@ -16,7 +15,7 @@ from packagingonlinux.gui.qt import (
     Qt, QToolButton, QUrl, QVBoxLayout, QWidget,
 )
 from packagingonlinux.gui.recent import RecentFiles, default_settings
-from packagingonlinux.gui.release import KEEP, ask_release
+from packagingonlinux.gui.release import ask_release
 from packagingonlinux.gui.worker import BuildWorker
 
 TOML_FILTER = "Configuration PackagingOnLinux (packaging.toml *.toml)"
@@ -201,11 +200,10 @@ class MainWindow(QMainWindow):
         if problems:
             QMessageBox.warning(self, "Informations manquantes", "\n".join(f"• {p}" for p in problems))
             return
-        release = ask_release(self, spec.version)
-        if release is None:
+        new_version = ask_release(self, spec.version)
+        if new_version is None:
             return
-        if release != KEEP:
-            new_version = bump(spec.version, release)
+        if new_version != spec.version:
             self.form.version.setText(new_version)
             if self.config_path and self.config_path.is_file():
                 # Only the version line: the file keeps its comments, and other unsaved
