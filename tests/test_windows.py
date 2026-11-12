@@ -7,8 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from packagingonlinux import config, core, ico, pe, winstage
-from packagingonlinux.backends.nsis import esc, nsis_script, product_version, shortcut_name
+from packagingonlinux import config, core
+from packagingonlinux.windows import ico, pe, staging
+from packagingonlinux.windows.nsis import esc, nsis_script, product_version, shortcut_name
 from tests.conftest import make_pe, make_png
 
 
@@ -49,8 +50,8 @@ def test_ico_is_copied_as_is(tmp_path: Path):
 
 
 def test_windows_stage(windows_spec, tmp_path: Path):
-    assert winstage.build_stage(windows_spec, tmp_path / "stage") == []
-    assert winstage.installed_files(tmp_path / "stage") == ["hello.exe", "hello.ico"]
+    assert staging.build_stage(windows_spec, tmp_path / "stage") == []
+    assert staging.installed_files(tmp_path / "stage") == ["hello.exe", "hello.ico"]
     assert windows_spec.windows_arch == "x64"
 
 

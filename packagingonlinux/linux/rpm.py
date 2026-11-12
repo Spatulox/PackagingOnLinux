@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from packagingonlinux import staging
-from packagingonlinux.backends.base import Backend, BuildContext
+from packagingonlinux.linux import staging
+from packagingonlinux.backend import Backend, BuildContext
 from packagingonlinux.runner import run
 
 

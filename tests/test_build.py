@@ -7,9 +7,10 @@ import tarfile
 
 import pytest
 
-from packagingonlinux import config, core, staging
-from packagingonlinux.backends.base import BuildContext
-from packagingonlinux.backends.rpm import spec_file
+from packagingonlinux import config, core
+from packagingonlinux.backend import BuildContext
+from packagingonlinux.linux import staging
+from packagingonlinux.linux.rpm import spec_file
 from tests.conftest import make_png
 
 
@@ -88,7 +89,7 @@ def test_build_deb_with_strict_umask(hello_spec):
 
 
 def test_missing_tool_is_reported_not_raised(hello_spec, monkeypatch):
-    from packagingonlinux.backends import BACKENDS
+    from packagingonlinux.core import BACKENDS
     monkeypatch.setattr(BACKENDS["rpm"], "required_tools", ("definitely-not-installed-tool",))
     result = core.build(hello_spec, ["rpm", "tarball"], log=lambda _: None)
     assert "rpm" in result.errors and "tarball" in result.packages

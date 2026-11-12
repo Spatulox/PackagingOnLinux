@@ -15,22 +15,14 @@ from __future__ import annotations
 
 import os
 import shutil
-import struct
 from datetime import date
 from pathlib import Path
 from xml.sax.saxutils import escape
 
 from packagingonlinux.config import AppSpec, ConfigError, Target
+from packagingonlinux.png import png_size
 
 HICOLOR_SIZES = {16, 22, 24, 32, 48, 64, 96, 128, 256, 512}
-
-
-def png_size(path: Path) -> tuple[int, int] | None:
-    with open(path, "rb") as f:
-        head = f.read(24)
-    if head[:8] != b"\x89PNG\r\n\x1a\n":
-        return None
-    return struct.unpack(">II", head[16:24])
 
 
 def _linux(spec: AppSpec) -> Target:

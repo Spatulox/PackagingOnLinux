@@ -12,7 +12,7 @@ import shutil
 import struct
 from pathlib import Path
 
-from packagingonlinux.staging import png_size
+from packagingonlinux.png import png_size
 
 ICO_MAGIC = b"\0\0\1\0"
 

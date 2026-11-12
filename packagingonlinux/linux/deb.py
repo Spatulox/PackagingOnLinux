@@ -4,8 +4,8 @@ import hashlib
 import shutil
 from pathlib import Path
 
-from packagingonlinux import deps, staging
-from packagingonlinux.backends.base import Backend, BuildContext
+from packagingonlinux.linux import deps, staging
+from packagingonlinux.backend import Backend, BuildContext
 from packagingonlinux.runner import run
 
 _SECTIONS = {

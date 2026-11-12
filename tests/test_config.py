@@ -4,7 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from packagingonlinux import config, elf
+from packagingonlinux import config
+from packagingonlinux.linux import elf
 from packagingonlinux.config import ConfigError
 
 

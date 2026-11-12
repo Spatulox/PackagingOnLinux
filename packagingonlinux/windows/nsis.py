@@ -12,10 +12,10 @@ import re
 import shutil
 from pathlib import Path, PurePosixPath
 
-from packagingonlinux import winstage
-from packagingonlinux.backends.base import Backend, BuildContext
+from packagingonlinux.backend import Backend, BuildContext
 from packagingonlinux.config import AppSpec
 from packagingonlinux.runner import run
+from packagingonlinux.windows import staging
 
 UNINSTALLER = "uninstall.exe"
 
@@ -66,8 +66,8 @@ def nsis_script(spec: AppSpec, payload: dict[str, Path], icon: Path | None, out:
     escaped there), so the real name is given with /oname, where escaping works.
     """
     files = list(payload)
-    exe = win(winstage.exe_path(spec))
-    icon_rel = win(winstage.icon_name(spec)) if icon else exe
+    exe = win(staging.exe_path(spec))
+    icon_rel = win(staging.icon_name(spec)) if icon else exe
     lnk = shortcut_name(spec.name)
     uninst_key = f"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{spec.id}"
     app_key = f"Software\\{spec.id}"
@@ -93,7 +93,7 @@ def nsis_script(spec: AppSpec, payload: dict[str, Path], icon: Path | None, out:
         icon_src = q(str(icon))
         lines += [f"!define MUI_ICON {icon_src}", f"!define MUI_UNICON {icon_src}"]
     lines += [
-        f"!define MUI_FINISHPAGE_RUN {inst(winstage.exe_path(spec))}",
+        f"!define MUI_FINISHPAGE_RUN {inst(staging.exe_path(spec))}",
         '!define MUI_FINISHPAGE_SHOWREADME ""',
         "!define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED",
         '!define MUI_FINISHPAGE_SHOWREADME_TEXT "$(DesktopShortcut)"',
@@ -141,7 +141,7 @@ def nsis_script(spec: AppSpec, payload: dict[str, Path], icon: Path | None, out:
     lines += [
         '  SetOutPath "$INSTDIR"',  # working directory of the shortcuts
         f'  WriteUninstaller "$INSTDIR\\{UNINSTALLER}"',
-        f'  CreateShortcut "$SMPROGRAMS\\{esc(lnk)}.lnk" {inst(winstage.exe_path(spec))} "" '
+        f'  CreateShortcut "$SMPROGRAMS\\{esc(lnk)}.lnk" {inst(staging.exe_path(spec))} "" '
         f'"$INSTDIR\\{esc(icon_rel)}" 0',
         f'  WriteRegStr HKCU {q(app_key)} "InstallDir" "$INSTDIR"',
     ]
@@ -165,7 +165,7 @@ def nsis_script(spec: AppSpec, payload: dict[str, Path], icon: Path | None, out:
         "",
         "Function CreateDesktopShortcut",
         '  SetOutPath "$INSTDIR"',
-        f'  CreateShortcut "$DESKTOP\\{esc(lnk)}.lnk" {inst(winstage.exe_path(spec))} "" '
+        f'  CreateShortcut "$DESKTOP\\{esc(lnk)}.lnk" {inst(staging.exe_path(spec))} "" '
         f'"$INSTDIR\\{esc(icon_rel)}" 0',
         "FunctionEnd",
         "",
@@ -206,7 +206,7 @@ class NsisBackend(Backend):
         spec = ctx.spec
         arch = spec.windows_arch
         out = ctx.outdir / f"{spec.file_stem}-{spec.version}-windows-{arch}-setup.exe"
-        files = winstage.installed_files(ctx.stage)
+        files = staging.installed_files(ctx.stage)
         if UNINSTALLER in files:
             raise ValueError(f"the app contains its own {UNINSTALLER}, which the installer needs")
         payload_dir = ctx.workdir / "payload"
@@ -215,9 +215,9 @@ class NsisBackend(Backend):
         for i, rel in enumerate(files):
             payload[rel] = payload_dir / f"{i:05d}"
             _link_or_copy(ctx.stage / rel, payload[rel])
-        icon = payload.get(winstage.icon_name(spec))
+        icon = payload.get(staging.icon_name(spec))
         script = ctx.workdir / "installer.nsi"
         script.write_text(nsis_script(spec, payload, icon, out.resolve(), arch,
-                                      winstage.installed_size_kib(ctx.stage)), encoding="utf-8")
+                                      staging.installed_size_kib(ctx.stage)), encoding="utf-8")
         run(["makensis", "-V2", "-INPUTCHARSET", "UTF8", str(script)], ctx.log)
         return [out]

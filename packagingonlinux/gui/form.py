@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from packagingonlinux import elf, pe
+from packagingonlinux.linux import elf
+from packagingonlinux.windows import pe
 from packagingonlinux.config import COMMON_LICENSES, MAIN_CATEGORIES, AppSpec, Target, suggest_id
 from packagingonlinux.gui.qt import (
     QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,

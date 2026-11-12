@@ -23,7 +23,8 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from packagingonlinux import elf, pe
+from packagingonlinux.linux import elf
+from packagingonlinux.windows import pe
 
 CONFIG_NAME = "packaging.toml"
 

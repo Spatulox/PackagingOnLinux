@@ -12,8 +12,8 @@ from __future__ import annotations
 import shutil
 from pathlib import Path, PurePosixPath
 
-from packagingonlinux import ico, pe
 from packagingonlinux.config import AppSpec, ConfigError, Target
+from packagingonlinux.windows import ico, pe
 
 
 def _windows(spec: AppSpec) -> Target:

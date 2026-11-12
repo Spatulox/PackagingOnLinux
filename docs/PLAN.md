@@ -31,21 +31,25 @@ Au départ, le repo contenait deux scripts bash (`scripts/deb.sh`, `scripts/rpm.
 ## Architecture
 
 ```
-packagingonlinux/
+packagingonlinux/            # le code de l'outil, rangé par plateforme
   __main__.py, cli.py        # sous-commandes: init, doctor, check, build, gui
   config.py                  # lecture + validation de packaging.toml -> AppSpec (dataclass)
-  elf.py                     # détection de l'architecture depuis l'en-tête ELF
-  pe.py                      # idem pour un .exe Windows (en-tête PE)
-  staging.py                 # arbre FHS commun (usr/bin, .desktop, icônes hicolor, metainfo)
-  winstage.py, ico.py        # arbre Windows (dossier de l'app à plat) + icône .ico en Python pur
-  deps.py                    # détection des dépendances (reprend l'ancien scripts/list_dep.py)
+  core.py                    # API commune build(spec, formats, log) utilisée par la CLI ET la GUI,
+                             # + registre BACKENDS (formats) et STAGERS (arbre de staging par plateforme)
+  backend.py                 # interface: platform, required_tools, build(ctx) -> list[Path]
   runner.py                  # exécution des commandes avec journal en direct
-  core.py                    # API commune build(spec, formats, log) utilisée par la CLI ET la GUI
-  backends/
-    base.py                  # interface: required_tools, build(ctx) -> list[Path]
+  png.py                     # lecture de la taille d'un PNG (icônes Linux et Windows)
+  linux/
+    elf.py                   # détection de l'architecture depuis l'en-tête ELF
+    deps.py                  # détection des dépendances (reprend l'ancien scripts/list_dep.py)
+    staging.py               # arbre FHS commun (usr/bin, .desktop, icônes hicolor, metainfo)
     deb.py  rpm.py  tarball.py
-    winzip.py  nsis.py       # Windows : zip portable, installeur setup.exe
     appimage.py  flatpak.py  snap.py      # à venir
+  windows/
+    pe.py                    # architecture depuis l'en-tête PE d'un .exe
+    ico.py                   # icône .ico en Python pur
+    staging.py               # dossier de l'app à plat (+ .ico)
+    zip.py  nsis.py          # zip portable, installeur setup.exe
   gui/
     app.py                   # QMainWindow, point d'entrée `packagingonlinux-gui`
     form.py                  # formulaire AppSpec (champs, sélecteurs de fichiers, aperçu de l'icône)
@@ -56,6 +60,9 @@ ci/                                       # à venir
   github/example-workflow.yml
   gitlab/packagingonlinux.gitlab-ci.yml   # template à inclure avec `include:`
 packaging.toml               # PackagingOnLinux se package lui-même (config de référence)
+selfpack/                    # fichiers dont packaging.toml a besoin : icônes, lanceurs, générateur .ico
+.github/workflows/release.yml  # tag vX.Y.Z -> GitHub release avec tous les paquets
+docs/                        # ce plan + la checklist deb d'origine
 tests/                       # pytest + pytest-qt, app fixture "hello" (script shell + icône)
 ```
 
@@ -63,7 +70,7 @@ Principes clés :
 - **Un seul staging FHS**, que chaque backend réutilise. On écrit donc une seule fois la logique « où va quel fichier ».
 - **La GUI ne contient aucune logique de packaging** : elle remplit un `AppSpec` et appelle `core.build`. La CLI et la CI font exactement la même chose.
 - **Un format qui échoue n'arrête pas les autres** : l'erreur est rapportée dans le résultat.
-- Un nouveau backend ajouté à `BACKENDS` apparaît automatiquement dans la CLI et dans la GUI.
+- Un nouveau backend ajouté à `BACKENDS` (dans `core.py`) apparaît automatiquement dans la CLI et dans la GUI.
 
 Écran principal de la GUI (une seule fenêtre) :
 ```

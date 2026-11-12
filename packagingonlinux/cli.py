@@ -7,10 +7,12 @@ import sys
 import tempfile
 from pathlib import Path
 
-from packagingonlinux import __version__, config, core, staging, winstage
-from packagingonlinux.backends import BACKENDS
+from packagingonlinux import __version__, config, core
 from packagingonlinux.config import ConfigError
+from packagingonlinux.core import BACKENDS
+from packagingonlinux.linux import staging as linux_staging
 from packagingonlinux.runner import CommandError
+from packagingonlinux.windows import staging as windows_staging
 
 
 def _ask(prompt: str, default: str = "") -> str:
@@ -68,7 +70,7 @@ def _check_linux(spec: config.AppSpec) -> bool:
     failed = False
     with tempfile.TemporaryDirectory() as tmp:
         stage = Path(tmp)
-        for w in staging.build_stage(spec, stage):
+        for w in linux_staging.build_stage(spec, stage):
             print(f"warning: {w}")
         validators = [
             ("desktop-file-validate", [str(stage / f"usr/share/applications/{spec.id}.desktop")]),
@@ -106,7 +108,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     if spec.windows is not None:
         with tempfile.TemporaryDirectory() as tmp:
             try:
-                for w in winstage.build_stage(spec, Path(tmp)):
+                for w in windows_staging.build_stage(spec, Path(tmp)):
                     print(f"warning: {w}")
                 targets.append(f"windows {spec.windows_arch}")
             except ValueError as e:

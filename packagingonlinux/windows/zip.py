@@ -3,8 +3,8 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
-from packagingonlinux import winstage
-from packagingonlinux.backends.base import Backend, BuildContext
+from packagingonlinux.windows import staging
+from packagingonlinux.backend import Backend, BuildContext
 
 
 class ZipBackend(Backend):
@@ -18,6 +18,6 @@ class ZipBackend(Backend):
         spec = ctx.spec
         out = ctx.outdir / f"{spec.file_stem}-{spec.version}-windows-{spec.windows_arch}.zip"
         with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
-            for rel in winstage.installed_files(ctx.stage):
+            for rel in staging.installed_files(ctx.stage):
                 zf.write(ctx.stage / rel, f"{spec.file_stem}/{rel}")
         return [out]

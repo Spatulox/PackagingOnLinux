@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 from packagingonlinux import __version__, config
-from packagingonlinux.backends import BACKENDS
+from packagingonlinux.core import BACKENDS
 from packagingonlinux.config import ConfigError
 from packagingonlinux.gui.form import AppForm, PathField
 from packagingonlinux.gui.formats import FormatsPanel

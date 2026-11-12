@@ -8,10 +8,22 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from packagingonlinux import staging, winstage
-from packagingonlinux.backends import BACKENDS, BuildContext
+from packagingonlinux.backend import Backend, BuildContext
 from packagingonlinux.config import PLATFORMS, AppSpec, ConfigError
+from packagingonlinux.linux import staging as linux_staging
+from packagingonlinux.linux.deb import DebBackend
+from packagingonlinux.linux.rpm import RpmBackend
+from packagingonlinux.linux.tarball import TarballBackend
 from packagingonlinux.runner import CommandError, Log, run
+from packagingonlinux.windows import staging as windows_staging
+from packagingonlinux.windows.nsis import NsisBackend
+from packagingonlinux.windows.zip import ZipBackend
+
+
+# Every packaging backend, by format name. Order = display order in the CLI and the GUI.
+# To add a format, write its Backend subclass in linux/ or windows/ and list it here.
+BACKENDS: dict[str, Backend] = {b.name: b for b in (
+    DebBackend(), RpmBackend(), TarballBackend(), ZipBackend(), NsisBackend())}
 
 
 @dataclass
@@ -51,8 +63,8 @@ def build_env(spec: AppSpec, platform: str) -> dict[str, str]:
 
 # platform -> function(spec, stage_root) -> warnings, building that platform's staging tree
 STAGERS: dict[str, Callable[[AppSpec, Path], list[str]]] = {
-    "linux": staging.build_stage,
-    "windows": winstage.build_stage,
+    "linux": linux_staging.build_stage,
+    "windows": windows_staging.build_stage,
 }
 
 
