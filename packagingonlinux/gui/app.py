@@ -11,9 +11,10 @@ from packagingonlinux.gui.form import AppForm, PathField
 from packagingonlinux.gui.formats import FormatsPanel
 from packagingonlinux.gui.qt import (
     QAction, QApplication, QDesktopServices, QFileDialog, QFontDatabase, QFormLayout, QHBoxLayout,
-    QKeySequence, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSplitter, Qt,
-    QUrl, QVBoxLayout, QWidget,
+    QKeySequence, QMainWindow, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSplitter,
+    Qt, QToolButton, QUrl, QVBoxLayout, QWidget,
 )
+from packagingonlinux.gui.recent import RecentFiles, default_settings
 from packagingonlinux.gui.worker import BuildWorker
 
 TOML_FILTER = "Configuration PackagingOnLinux (packaging.toml *.toml)"
@@ -24,6 +25,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.config_path: Path | None = None
         self.worker: BuildWorker | None = None
+        self.recent = RecentFiles(default_settings())
         self.resize(820, 900)
 
         self.form = AppForm()
@@ -78,6 +80,8 @@ class MainWindow(QMainWindow):
 
     # ---- menus ----------------------------------------------------------------
     def _make_actions(self) -> None:
+        self.recent_menu = QMenu("Ouvrir un fichier &récent", self)
+        self.recent_menu.aboutToShow.connect(self._fill_recent_menu)
         toolbar = self.addToolBar("Fichier")
         toolbar.setMovable(False)
         menu = self.menuBar().addMenu("&Fichier")
@@ -92,11 +96,35 @@ class MainWindow(QMainWindow):
             action.triggered.connect(slot)
             menu.addAction(action)
             toolbar.addAction(action)
+            if slot == self.ask_open:
+                menu.addMenu(self.recent_menu)
+                # The toolbar's Open button gets a drop-down arrow with the same list.
+                button = toolbar.widgetForAction(action)
+                if isinstance(button, QToolButton):
+                    button.setMenu(self.recent_menu)
+                    button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
         menu.addSeparator()
         quit_action = QAction("Quitter", self)
         quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         quit_action.triggered.connect(self.close)
         menu.addAction(quit_action)
+
+    def _fill_recent_menu(self) -> None:
+        """Rebuilt each time the menu opens, so it lists only files that still exist."""
+        self.recent_menu.clear()
+        paths = [p for p in self.recent.paths() if p.is_file()]
+        home = Path.home()
+        for i, path in enumerate(paths, 1):
+            shown = f"~/{path.relative_to(home)}" if path.is_relative_to(home) else str(path)
+            mnemonic = f"&{i}" if i < 10 else str(i)
+            action = self.recent_menu.addAction(f"{mnemonic}  {shown.replace('&', '&&')}")
+            action.triggered.connect(lambda _checked=False, p=path: self.open_config(p))
+        if not paths:
+            self.recent_menu.addAction("Aucun fichier récent").setEnabled(False)
+        self.recent_menu.addSeparator()
+        clear = self.recent_menu.addAction("Effacer la liste")
+        clear.setEnabled(bool(self.recent.paths()))
+        clear.triggered.connect(self.recent.clear)
 
     def _update_title(self) -> None:
         name = str(self.config_path) if self.config_path else "nouvelle configuration"
@@ -133,6 +161,7 @@ class MainWindow(QMainWindow):
         self.form.set_spec(spec)
         self.formats.set_formats(spec.formats)
         self.output.set_path(spec.output_dir)
+        self.recent.add(self.config_path)
         self._update_title()
 
     def save(self) -> bool:
@@ -149,7 +178,10 @@ class MainWindow(QMainWindow):
             return False
         self.config_path = Path(path).resolve()
         self._update_title()
-        return self.save()
+        if not self.save():
+            return False
+        self.recent.add(self.config_path)
+        return True
 
     # ---- build ------------------------------------------------------------------
     def start_build(self) -> None:

@@ -54,6 +54,7 @@ packagingonlinux/            # le code de l'outil, rangé par plateforme
     app.py                   # QMainWindow, point d'entrée `packagingonlinux-gui`
     form.py                  # formulaire AppSpec (champs, sélecteurs de fichiers, aperçu de l'icône)
     formats.py               # cases à cocher des formats + état « outil dispo/manquant » (issu de doctor)
+    recent.py                # fichiers récemment ouverts (QSettings), menu Fichier > Ouvrir un fichier récent
     worker.py                # QThread qui lance core.build et diffuse les logs en direct
 ci/                                       # à venir
   github/action.yml          # action composite réutilisable

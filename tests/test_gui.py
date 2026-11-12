@@ -8,9 +8,19 @@ pytest.importorskip("packagingonlinux.gui.qt")
 pytest.importorskip("pytestqt")
 
 from packagingonlinux import config  # noqa: E402
+from packagingonlinux.gui import app  # noqa: E402
 from packagingonlinux.gui.app import MainWindow  # noqa: E402
-from packagingonlinux.gui.qt import QMessageBox  # noqa: E402
+from packagingonlinux.gui.qt import QMessageBox, QSettings, QToolButton  # noqa: E402
+from packagingonlinux.gui.recent import MAX_RECENT, RecentFiles  # noqa: E402
 from tests.conftest import make_pe  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def settings(monkeypatch, tmp_path):
+    """Keep the recent files list in a temporary INI file, never in the user's ~/.config."""
+    path = str(tmp_path / "settings.ini")
+    monkeypatch.setattr(app, "default_settings", lambda: QSettings(path, QSettings.Format.IniFormat))
+    return path
 
 
 @pytest.fixture(autouse=True)
@@ -106,3 +116,56 @@ def test_name_suggested_from_windows_exe(qtbot, tmp_path):
 def test_formats_grouped_by_platform(window):
     assert set(window.formats.headers) == {"linux", "windows"}
     assert {"zip", "nsis"} <= set(window.formats.checkboxes)
+
+
+def _recent_entries(window) -> list[str]:
+    window._fill_recent_menu()
+    return [a.text() for a in window.recent_menu.actions() if not a.isSeparator()]
+
+
+def test_recent_list_order_dedup_and_limit(tmp_path, settings):
+    recent = RecentFiles(QSettings(settings, QSettings.Format.IniFormat))
+    a, b = tmp_path / "a.toml", tmp_path / "b.toml"
+    recent.add(a)
+    # A single entry must survive a reload (INI reads a one-item list back as a string).
+    assert RecentFiles(QSettings(settings, QSettings.Format.IniFormat)).paths() == [a]
+    recent.add(b)
+    recent.add(a)
+    assert recent.paths() == [a, b]
+    for i in range(MAX_RECENT + 3):
+        recent.add(tmp_path / f"{i}.toml")
+    assert len(recent.paths()) == MAX_RECENT
+    recent.clear()
+    assert recent.paths() == []
+
+
+def test_open_and_save_as_fill_recent_menu(window, hello_project, monkeypatch):
+    other = hello_project.with_name("other.toml")
+    monkeypatch.setattr(app.QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: (str(other), "")))
+    assert window.save_as()
+    assert window.recent.paths() == [other.resolve(), hello_project.resolve()]
+    entries = _recent_entries(window)
+    assert entries[0].startswith("&1") and entries[0].endswith("other.toml")
+    assert entries[1].startswith("&2") and entries[1].endswith("packaging.toml")
+    assert entries[-1] == "Effacer la liste"
+
+    # Picking an entry opens it and moves it to the top.
+    window.recent_menu.actions()[1].trigger()
+    assert window.config_path == hello_project.resolve()
+    assert window.recent.paths()[0] == hello_project.resolve()
+
+
+def test_recent_menu_hides_missing_files_and_clears(window, hello_project):
+    gone = hello_project.with_name("gone.toml")
+    window.recent.add(gone)
+    assert not any(e.endswith("gone.toml") for e in _recent_entries(window))
+    clear = window.recent_menu.actions()[-1]
+    clear.trigger()
+    assert _recent_entries(window) == ["Aucun fichier récent", "Effacer la liste"]
+    assert not window.recent_menu.actions()[-1].isEnabled()
+
+
+def test_open_toolbar_button_has_recent_dropdown(window):
+    buttons = [b for b in window.findChildren(QToolButton) if b.menu() is window.recent_menu]
+    assert len(buttons) == 1
+    assert buttons[0].popupMode() == QToolButton.ToolButtonPopupMode.MenuButtonPopup
