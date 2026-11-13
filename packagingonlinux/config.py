@@ -5,8 +5,8 @@ it are resolved against the directory that contains the file.
 
 Schema:
     [app]     id, name, version, summary, description, license, maintainer, homepage, categories
-    [linux]   command, binary | dir (+ exec), icon
-    [windows] command, binary | dir (+ exec), icon      (optional, same keys)
+    [linux]   command, binary | dir (+ exec), icon, man
+    [windows] command, binary | dir (+ exec), icon      (optional, same keys but man)
     [deps]    auto, deb, rpm        (optional, Linux only)
     [flatpak] runtime, runtime_version, sdk, finish_args      (optional)
     [snap]    base, confinement, grade, plugs, extensions, stage_packages   (optional)
@@ -54,13 +54,14 @@ class ConfigError(ValueError):
 @dataclass
 class Target:
     """What to package for one platform: a single executable or a directory, plus an icon,
-    and the optional command that produces them."""
+    man pages (Linux only), and the optional command that produces them."""
 
     binary: Path | None = None
     dir: Path | None = None
     exec: str = ""
     icon: Path | None = None
     command: str = ""
+    man: list[Path] = field(default_factory=list)
 
     @property
     def exec_name(self) -> str:
@@ -92,7 +93,22 @@ class Target:
                 problems.append(f"executable not found: {self.dir / self.exec}")
             if self.icon and not self.icon.is_file():
                 problems.append(f"icon not found: {self.icon}")
+        if self.man and section != "linux":
+            problems.append(f"[{section}] man pages are only installed by Linux formats: move 'man' to [linux]")
+        for page in self.man:
+            if man_section(page) is None:
+                problems.append(f"man page {page.name!r} must end with its section, e.g. myapp.1 or myapp.1.gz")
+            elif check_files and not page.is_file():
+                problems.append(f"man page not found: {page}")
         return problems
+
+
+def man_section(page: Path) -> str | None:
+    """The man section digit from a page's name ("myapp.1", "foo.3pm", "myapp.1.gz" -> "1",
+    "3", "1"), or None."""
+    name = page.name.removesuffix(".gz")
+    m = re.search(r"\.([1-9])[a-z]*$", name)
+    return m.group(1) if m else None
 
 
 FLATPAK_FINISH_ARGS = ["--share=ipc", "--socket=wayland", "--socket=fallback-x11", "--device=dri"]
@@ -252,6 +268,7 @@ def _target(base_dir: Path, table: dict, where: str) -> Target:
         exec=str(table.get("exec", "")),
         icon=_path(base_dir, table.get("icon")),
         command=str(table.get("command", "")),
+        man=[_path(base_dir, page) for page in _str_list(table, "man", where)],
     )
 
 
@@ -369,6 +386,7 @@ def _target_table(target: Target, base_dir: Path) -> dict:
         "command": target.command,
         "binary": _rel(target.binary, base_dir), "dir": _rel(target.dir, base_dir),
         "exec": target.exec if target.dir else "", "icon": _rel(target.icon, base_dir),
+        "man": [_rel(page, base_dir) for page in target.man],
     }
 
 

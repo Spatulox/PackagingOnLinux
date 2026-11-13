@@ -24,6 +24,7 @@ command = 'rm -rf build/app && mkdir -p build/app && cp -r packagingonlinux buil
 dir = "build/app"
 exec = "bin/packagingonlinux"
 icon = "selfpack/packagingonlinux.svg"
+man = ["docs/man/packagingonlinux.1", "docs/man/packaging.toml.5"]
 
 [windows]
 # A Python + Qt app can't be frozen into an .exe from Linux: the release workflow

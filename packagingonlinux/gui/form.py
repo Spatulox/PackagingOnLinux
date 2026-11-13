@@ -52,6 +52,38 @@ def _split(text: str) -> list[str]:
     return [p.strip() for p in text.split(",") if p.strip()]
 
 
+class ManPagesField(QWidget):
+    """Man pages to install: comma-separated paths, plus a button that adds files."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.edit = QLineEdit()
+        self.edit.setPlaceholderText("optionnel, ex. docs/monapp.1  (section en extension)")
+        self.edit.setToolTip(
+            "Pages de manuel installées dans /usr/share/man/man<N>/ par les formats Linux.\n"
+            "Le nom se termine par la section : monapp.1, monapp.conf.5, ou déjà compressé : monapp.1.gz.\n"
+            "Plusieurs pages séparées par des virgules.")
+        button = QPushButton("Ajouter…")
+        button.clicked.connect(self._browse)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.edit, 1)
+        layout.addWidget(button)
+
+    def _browse(self) -> None:
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Choisir les pages de manuel", str(Path.cwd()),
+            "Pages de manuel (*.[1-9] *.[1-9]*.gz *.[1-9]*);;Tous les fichiers (*)")
+        if paths:
+            self.set_paths(self.paths() + [Path(p) for p in paths])
+
+    def paths(self) -> list[Path]:
+        return [Path(p).expanduser().resolve() for p in _split(self.edit.text())]
+
+    def set_paths(self, paths: list[Path]) -> None:
+        self.edit.setText(", ".join(str(p) for p in paths))
+
+
 class CategoriesField(QWidget):
     """Menu categories: one checkbox per freedesktop main category, plus a line for
     additional ones (e.g. TextEditor, Viewer). The order of a loaded config is kept, since
@@ -140,6 +172,9 @@ class TargetWidget(QWidget):
         icon_row.addWidget(self.icon_preview)
         self._form.addRow("Icône", icon_row)
         self._form.addRow("Commande de compilation", self.command)
+        self.man = ManPagesField()
+        if not windows:  # Windows has no man pages
+            self._form.addRow("Pages de manuel", self.man)
 
         self.mode.currentIndexChanged.connect(self._update_mode)
         self.binary.changed.connect(self._update_arch)
@@ -199,6 +234,7 @@ class TargetWidget(QWidget):
         self.exec.setText(target.exec)
         self.icon.set_path(target.icon)
         self.command.setText(target.command)
+        self.man.set_paths(target.man)
 
     def target(self) -> Target | None:
         """The edited target, or None when every field is empty (= no section for this platform)."""
@@ -209,6 +245,7 @@ class TargetWidget(QWidget):
             exec=self.exec.text().strip() if dir_mode else "",
             icon=self.icon.path(),
             command=self.command.text().strip(),
+            man=self.man.paths() if self.platform == "linux" else [],
         )
         return None if target == Target() else target
 

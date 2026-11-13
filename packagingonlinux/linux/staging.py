@@ -5,6 +5,7 @@ Layout (single binary):
     usr/share/applications/<id>.desktop
     usr/share/icons/hicolor/<N>x<N>/apps/<id>.png   (or scalable/apps/<id>.svg, or pixmaps/<id>.png)
     usr/share/metainfo/<id>.metainfo.xml
+    usr/share/man/man<N>/<page>.gz                   ([linux] man, gzipped)
 
 Layout (directory app): files go to usr/lib/<package>/ and usr/bin/<exec> is a relative symlink.
 
@@ -13,13 +14,14 @@ Only freedesktop standards are used, so the result works on any desktop environm
 
 from __future__ import annotations
 
+import gzip
 import os
 import shutil
 from datetime import date
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from packagingonlinux.config import AppSpec, ConfigError, Target
+from packagingonlinux.config import AppSpec, ConfigError, Target, man_section
 from packagingonlinux.png import png_size
 
 HICOLOR_SIZES = {16, 22, 24, 32, 48, 64, 96, 128, 256, 512}
@@ -146,8 +148,26 @@ def build_stage(spec: AppSpec, root: Path) -> list[str]:
     else:
         warnings.append("no icon set: the app will show a generic icon in menus")
 
+    for page in target.man:
+        install_man_page(page, root)
+
     _normalize_permissions(root)
     return warnings
+
+
+def install_man_page(page: Path, root: Path) -> Path:
+    """Copy a man page to usr/share/man/man<N>/, gzipped as Debian policy wants (-9, no
+    timestamp, so the package is reproducible). Returns the installed file."""
+    section = man_section(page)
+    if section is None:
+        raise ValueError(f"man page {page.name!r} must end with its section, e.g. myapp.1")
+    data = page.read_bytes()
+    if not page.name.endswith(".gz"):
+        data = gzip.compress(data, compresslevel=9, mtime=0)
+    dest = root / f"usr/share/man/man{section}" / (page.name.removesuffix(".gz") + ".gz")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(data)
+    return dest
 
 
 def installed_files(root: Path) -> list[str]:

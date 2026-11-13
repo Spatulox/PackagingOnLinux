@@ -92,6 +92,7 @@ categories = ["Utility"]
 command = "make"                  # optional, see below
 binary = "build/myapp"            # or: dir = "dist/" + exec = "bin/myapp"
 icon = "icons/myapp.png"          # square PNG or SVG
+man = ["docs/myapp.1"]            # optional man pages (name ends with the section)
 
 [windows]                         # optional: only for the zip and nsis formats
 command = "make windows"

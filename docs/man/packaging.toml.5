@@ -83,12 +83,20 @@ Without an icon, menus show a generic one.
 .TP
 \fBcommand\fR (string)
 Shell command run before packaging, see \fBBUILD COMMANDS\fR.
+.TP
+\fBman\fR (list of paths)
+Man pages, installed gzipped into \fI/usr/share/man/man<N>/\fR.
+The file name ends with the section, which picks \fIN\fR: \fBmyapp.1\fR,
+\fBmyapp.conf.5\fR, \fBfoo.3pm\fR, or an already compressed \fBmyapp.1.gz\fR.
+Debian policy wants a man page for every command in \fI/usr/bin\fR.
+Only the deb, rpm and tar.gz packages make them available to
+.BR man (1).
 .PP
 The architecture is read from the executable's ELF header; a script is packaged as
 architecture\-independent (deb \fBall\fR, rpm \fBnoarch\fR).
 .SH "[windows] SECTION"
 What to package for the Windows formats (\fBzip\fR, \fBnsis\fR): the same keys as
-\fB[linux]\fR, with a Windows executable (\fI.exe\fR).
+\fB[linux]\fR except \fBman\fR, with a Windows executable (\fI.exe\fR).
 The architecture (x86, x64, arm64) is read from its PE header.
 An empty \fB[windows]\fR section still means "build for Windows".
 .TP
@@ -206,6 +214,7 @@ app shows in the menus of any desktop environment:
 /usr/share/applications/<id>.desktop
 /usr/share/icons/hicolor/<size>/apps/<id>.png|.svg
 /usr/share/metainfo/<id>.metainfo.xml
+/usr/share/man/man<N>/<page>.gz              (with \fBman\fR)
 .RE
 .fi
 .SH "OLD LAYOUT"
@@ -230,6 +239,7 @@ categories = ["Utility"]
 command = "make"
 binary = "build/myapp"
 icon = "icons/myapp.svg"
+man = ["docs/myapp.1"]
 
 [output]
 formats = ["deb", "rpm", "tarball", "appimage"]

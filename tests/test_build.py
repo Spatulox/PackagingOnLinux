@@ -30,6 +30,22 @@ def test_stage_layout(hello_spec, tmp_path):
     assert (root / "usr/bin/hello").stat().st_mode & 0o777 == 0o755
 
 
+def test_man_pages_are_gzipped_into_their_section(hello_spec, tmp_path):
+    import gzip
+    (tmp_path / "hello.1").write_text(".TH HELLO 1\n")
+    (tmp_path / "hello.conf.5.gz").write_bytes(gzip.compress(b".TH HELLO.CONF 5\n"))
+    hello_spec.linux.man = [tmp_path / "hello.1", tmp_path / "hello.conf.5.gz"]
+    root = tmp_path / "stage"
+    staging.build_stage(hello_spec, root)
+    page = root / "usr/share/man/man1/hello.1.gz"
+    assert gzip.decompress(page.read_bytes()) == b".TH HELLO 1\n"
+    assert page.stat().st_mode & 0o777 == 0o644
+    assert gzip.decompress((root / "usr/share/man/man5/hello.conf.5.gz").read_bytes()) == b".TH HELLO.CONF 5\n"
+    again = tmp_path / "again"
+    staging.build_stage(hello_spec, again)
+    assert (again / "usr/share/man/man1/hello.1.gz").read_bytes() == page.read_bytes()  # no timestamp
+
+
 def test_non_square_icon_goes_to_pixmaps(hello_spec, tmp_path):
     make_png(hello_spec.linux.icon, 50, 60)
     warnings = staging.build_stage(hello_spec, tmp_path / "stage")
