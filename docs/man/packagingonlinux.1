@@ -18,34 +18,37 @@ Every command also accepts \fB\-h\fR, \fB\-\-help\fR.
 Ask for the executable, name, id, version, maintainer, license, icon, category and formats, then write a [linux] config. Refuses to overwrite an existing file.
 .TP
 \fB\-c\fR, \fB\-\-config\fR \fIPATH\fR
-path to the config (default: packaging.toml in the current directory)
+path to the config (default: packaging.toml in the current directory); for check and build, \- reads it from standard input, with paths relative to the current directory
 .TP
 \fB\-\-force\fR
 overwrite the config if it exists
 .SS doctor
 \fBpackagingonlinux doctor\fR
 .PP
-Print the version, then one line per format: ok, or the missing tools and the command that installs them. Always exits 0.
+Print the version, then one line per format: ok, or the missing tools and the command that installs them, and a last line telling whether Docker can be used for \-\-container. Always exits 0.
 .SS check
 \fBpackagingonlinux check\fR [\fB\-c\fR \fIPATH\fR]
 .PP
 Report missing or invalid fields and files, then generate the Linux .desktop and AppStream metainfo files in a temporary directory and run desktop\-file\-validate and appstreamcli on them (skipped when not installed). Builds and writes nothing.
 .TP
 \fB\-c\fR, \fB\-\-config\fR \fIPATH\fR
-path to the config (default: packaging.toml in the current directory)
+path to the config (default: packaging.toml in the current directory); for check and build, \- reads it from standard input, with paths relative to the current directory
 .SS build
-\fBpackagingonlinux build\fR [\fB\-c\fR \fIPATH\fR] [\fB\-f\fR \fIFORMATS\fR] [\fB\-o\fR \fIDIR\fR]
+\fBpackagingonlinux build\fR [\fB\-c\fR \fIPATH\fR] [\fB\-f\fR \fIFORMATS\fR] [\fB\-o\fR \fIDIR\fR] [\fB\-\-container\fR]
 .PP
-For each platform that has a requested format, run its build command, then build every requested format into the output directory. A format that fails, or whose tools are missing, does not stop the others: failures are listed at the end and the exit status is 1.
+For each platform that has a requested format, run its build command, then build every requested format into the output directory. A format that fails, or whose tools are missing, does not stop the others: failures are listed at the end and the exit status is 1. With \-\-container, the default on Windows, the Linux build command and formats run in a Docker container (all of them but snap), so they can be built from Windows or from a machine without their tools; the Windows ones still run on the host. The container sees only the config's folder and the output directory.
 .TP
 \fB\-c\fR, \fB\-\-config\fR \fIPATH\fR
-path to the config (default: packaging.toml in the current directory)
+path to the config (default: packaging.toml in the current directory); for check and build, \- reads it from standard input, with paths relative to the current directory
 .TP
 \fB\-f\fR, \fB\-\-format\fR \fIFORMATS\fR
 comma\-separated formats to build (default: [output] formats of the config)
 .TP
 \fB\-o\fR, \fB\-\-output\fR \fIDIR\fR
 output directory (default: [output] dir of the config)
+.TP
+\fB\-\-container\fR, \fB\-\-no\-container\fR
+build the Linux formats in a Docker container, or never (default: in a container on Windows only). Fails if Docker is missing or not running
 .SS gui
 \fBpackagingonlinux gui\fR [\fICONFIG\fR]
 .PP
@@ -59,12 +62,12 @@ Values accepted by \fB\-f\fR and by [output] formats.
 \fBdeb\fR
 Debian / Ubuntu (.deb), from [linux]; needs dpkg\-deb.
 .br
-Install: apt install dpkg  (or build in a debian container)
+Install: apt install dpkg  (or build with \-\-container)
 .TP
 \fBrpm\fR
 Fedora / openSUSE / RHEL (.rpm), from [linux]; needs rpmbuild.
 .br
-Install: dnf install rpm\-build  |  apt install rpm  (or build in a fedora container)
+Install: dnf install rpm\-build  |  apt install rpm  (or build with \-\-container)
 .TP
 \fBtarball\fR
 tar.gz, from [linux].
@@ -100,7 +103,7 @@ success
 check found a problem, a format failed to build, init refused to overwrite a file, or the GUI is not available
 .TP
 \fB2\fR
-invalid command line or config (unreadable packaging.toml, unknown format...)
+invalid command line or config (unreadable packaging.toml, unknown format...), or Docker missing or not running for \-\-container
 .TP
 \fB130\fR
 interrupted (Ctrl+C)
@@ -111,6 +114,9 @@ path to an AppImage type2 runtime to use instead of downloading the pinned relea
 .TP
 \fBXDG_CACHE_HOME\fR
 where the downloaded AppImage runtime is cached (default: ~/.cache)
+.TP
+\fBPACKAGINGONLINUX_CONTAINER_IMAGE\fR
+image to run with \-\-container instead of building PackagingOnLinux's own (e.g. one derived from it, with the compiler that [linux] command needs)
 .SH FILES
 .TP
 packaging.toml
@@ -118,6 +124,9 @@ the config read by default, in the current directory
 .TP
 $XDG_CACHE_HOME/packagingonlinux/
 cache of the AppImage runtime
+.TP
+packagingonlinux\-cache (Docker volume)
+with \-\-container: cache of the AppImage runtime and of the Flatpak runtimes
 .SH EXAMPLES
 .TP
 \fBpackagingonlinux init\fR
@@ -134,6 +143,9 @@ Build the formats listed in [output] formats of ./packaging.toml.
 .TP
 \fBpackagingonlinux build \-f deb,rpm \-o dist\fR
 Build only the deb and rpm packages, into dist/.
+.TP
+\fBpackagingonlinux build \-\-container\fR
+Build the Linux formats in a Docker container (the default on Windows).
 .TP
 \fBpackagingonlinux gui app/packaging.toml\fR
 Edit a config in the graphical interface.

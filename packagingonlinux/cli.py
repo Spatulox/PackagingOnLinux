@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from packagingonlinux import __version__, config, core
+from packagingonlinux import __version__, config, container, core
 from packagingonlinux.config import ConfigError
 from packagingonlinux.core import BACKENDS
 from packagingonlinux.linux import staging as linux_staging
@@ -60,6 +60,12 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         else:
             print(f"  missing  {status.platform:8} {status.name:9} {status.label}: needs {', '.join(status.missing)}")
             print(f"           {'':8} {'':9} install: {status.install_hint}")
+    ok, text = container.docker_status()
+    usage = "used by default" if container.default_enabled() else "used with --container"
+    if ok:
+        print(f"  ok       {'linux':8} {'container':9} Docker {text} ({usage})")
+    else:
+        print(f"  missing  {'linux':8} {'container':9} {text}")
     return 0
 
 
@@ -121,7 +127,7 @@ def cmd_build(args: argparse.Namespace) -> int:
     if args.output:
         spec.output_dir = Path(args.output).resolve()
     formats = [f.strip() for f in args.format.split(",")] if args.format else None
-    result = core.build(spec, formats)
+    result = core.build(spec, formats, container=args.container)
     print()
     for name, paths in result.packages.items():
         for p in paths:
@@ -153,6 +159,7 @@ EXAMPLES = [
     ("packagingonlinux check -c app/packaging.toml", "validate a config without building anything"),
     ("packagingonlinux build", "build the formats listed in [output] formats of ./packaging.toml"),
     ("packagingonlinux build -f deb,rpm -o dist", "build only the deb and rpm packages, into dist/"),
+    ("packagingonlinux build --container", "build the Linux formats in a Docker container (the default on Windows)"),
     ("packagingonlinux gui app/packaging.toml", "edit a config in the graphical interface"),
 ]
 
@@ -160,7 +167,8 @@ EXIT_STATUS = [
     ("0", "success"),
     ("1", "check found a problem, a format failed to build, init refused to overwrite a file, "
           "or the GUI is not available"),
-    ("2", "invalid command line or config (unreadable packaging.toml, unknown format...)"),
+    ("2", "invalid command line or config (unreadable packaging.toml, unknown format...), "
+          "or Docker missing or not running for --container"),
     ("130", "interrupted (Ctrl+C)"),
 ]
 
@@ -168,11 +176,16 @@ ENVIRONMENT = [
     ("PACKAGINGONLINUX_APPIMAGE_RUNTIME",
      "path to an AppImage type2 runtime to use instead of downloading the pinned release"),
     ("XDG_CACHE_HOME", "where the downloaded AppImage runtime is cached (default: ~/.cache)"),
+    (container.IMAGE_ENV,
+     "image to run with --container instead of building PackagingOnLinux's own (e.g. one "
+     "derived from it, with the compiler that [linux] command needs)"),
 ]
 
 FILES = [
     ("packaging.toml", "the config read by default, in the current directory"),
     ("$XDG_CACHE_HOME/packagingonlinux/", "cache of the AppImage runtime"),
+    (f"{container.CACHE_VOLUME} (Docker volume)",
+     "with --container: cache of the AppImage runtime and of the Flatpak runtimes"),
 ]
 
 
@@ -219,7 +232,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     def with_config(p: argparse.ArgumentParser) -> argparse.ArgumentParser:
         p.add_argument("-c", "--config", default=config.CONFIG_NAME, metavar="PATH",
-                       help="path to the config (default: packaging.toml in the current directory)")
+                       help="path to the config (default: packaging.toml in the current directory); "
+                            "for check and build, - reads it from standard input, with paths "
+                            "relative to the current directory")
         return p
 
     p = with_config(command(
@@ -232,7 +247,8 @@ def build_parser() -> argparse.ArgumentParser:
     command(
         "doctor", "show which formats can be built on this machine",
         "Print the version, then one line per format: ok, or the missing tools and the command "
-        "that installs them. Always exits 0.").set_defaults(func=cmd_doctor)
+        "that installs them, and a last line telling whether Docker can be used for --container. "
+        "Always exits 0.").set_defaults(func=cmd_doctor)
 
     with_config(command(
         "check", "validate the config and generated metadata",
@@ -246,11 +262,17 @@ def build_parser() -> argparse.ArgumentParser:
         "For each platform that has a requested format, run its build command, then build "
         "every requested format into the output directory. A format that fails, or whose "
         "tools are missing, does not stop the others: failures are listed at the end and the "
-        "exit status is 1."))
+        "exit status is 1. With --container, the default on Windows, the Linux build command "
+        "and formats run in a Docker container (all of them but snap), so they can be built "
+        "from Windows or from a machine without their tools; the Windows ones still run on the "
+        "host. The container sees only the config's folder and the output directory."))
     p.add_argument("-f", "--format", metavar="FORMATS",
                    help="comma-separated formats to build (default: [output] formats of the config)")
     p.add_argument("-o", "--output", metavar="DIR",
                    help="output directory (default: [output] dir of the config)")
+    p.add_argument("--container", action=argparse.BooleanOptionalAction, default=None,
+                   help="build the Linux formats in a Docker container, or never (default: in a "
+                        "container on Windows only). Fails if Docker is missing or not running")
     p.set_defaults(func=cmd_build)
 
     p = command(

@@ -70,14 +70,20 @@ def _popen_args(cmd: list[str] | str, cwd: Path | None, shell: bool,
 
 def run(
     cmd: list[str] | str, log: Log, cwd: Path | None = None, shell: bool = False,
-    env: dict[str, str] | None = None,
+    env: dict[str, str] | None = None, input: str | None = None,
 ) -> None:
+    """Run `cmd`, streaming its output to `log`; `input` is written to its standard input."""
     shown = cmd if isinstance(cmd, str) else " ".join(cmd)
     log(f"$ {shown}")
     argv, kwargs = _popen_args(cmd, cwd, shell, env)
     proc = subprocess.Popen(
-        argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace", **kwargs,
+        argv, stdin=None if input is None else subprocess.PIPE,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace", **kwargs,
     )
+    if input is not None:
+        assert proc.stdin is not None
+        with proc.stdin:  # read before its output: keep inputs small (a config, a Dockerfile)
+            proc.stdin.write(input)
     assert proc.stdout is not None
     for line in proc.stdout:
         log("  " + line.rstrip("\n"))

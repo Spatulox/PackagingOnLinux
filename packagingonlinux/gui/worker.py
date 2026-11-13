@@ -12,14 +12,15 @@ class BuildWorker(QThread):
     done = Signal(object)    # core.BuildResult
     failed = Signal(str)
 
-    def __init__(self, spec: AppSpec, formats: list[str], parent=None):
+    def __init__(self, spec: AppSpec, formats: list[str], container: bool = False, parent=None):
         super().__init__(parent)
         self.spec = spec
         self.formats = formats
+        self.container = container  # build the Linux formats in a Docker container
 
     def run(self) -> None:
         try:
-            result = core.build(self.spec, self.formats, log=self.log.emit)
+            result = core.build(self.spec, self.formats, log=self.log.emit, container=self.container)
         except Exception as e:  # surfaced in the UI instead of killing the thread silently
             self.failed.emit(str(e))
         else:

@@ -382,3 +382,19 @@ def test_ask_release_real_dialog(qtbot, accept, expected):
 
     QTimer.singleShot(0, answer)
     assert release_module.ask_release(None, "1.2.3") == expected
+
+
+def test_container_option_enables_linux_formats(window):
+    panel = window.formats
+    assert panel.use_container() is False  # on by default on Windows only
+    panel.container.setChecked(True)
+    for name, status in panel.status.items():
+        if status.platform == "linux":
+            assert panel.checkboxes[name].isEnabled() == (name != "snap")
+        else:
+            assert panel.checkboxes[name].isEnabled() == status.ok
+    assert panel.unavailable_reason("snap") == "impossible dans le conteneur Docker"
+    assert "snap" not in panel.buildable_formats()
+    panel.container.setChecked(False)
+    for name, status in panel.status.items():
+        assert panel.checkboxes[name].isEnabled() == status.ok

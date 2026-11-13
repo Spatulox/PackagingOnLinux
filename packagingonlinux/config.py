@@ -21,6 +21,7 @@ The older layout ([files] + [build] command) is still read as [linux].
 from __future__ import annotations
 
 import re
+import sys
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -340,7 +341,15 @@ def from_dict(data: dict, base_dir: Path) -> AppSpec:
 
 
 def load(path: Path) -> AppSpec:
+    """Load a config file. "-" reads it from standard input, with paths relative to the
+    current directory (what --container uses to pass the config to the container)."""
     path = Path(path)
+    if str(path) == "-":
+        try:
+            data = tomllib.load(sys.stdin.buffer)
+        except tomllib.TOMLDecodeError as e:
+            raise ConfigError(f"standard input: {e}") from None
+        return from_dict(data, Path.cwd())
     try:
         with open(path, "rb") as f:
             data = tomllib.load(f)

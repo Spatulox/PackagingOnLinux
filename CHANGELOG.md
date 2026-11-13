@@ -3,6 +3,18 @@
 All notable changes to PackagingOnLinux are documented here.
 A release is published only for a version that has a section in this file.
 
+## [Unreleased]
+
+### Added
+- `build --container`: the Linux build command and formats (all but snap) run in a Docker container, with every packaging tool. It is the default on Windows, so that a Windows machine with Docker Desktop builds the Linux packages too; `--no-container` turns it off. Without Docker, or with Docker stopped, the build stops with an error saying what to do.
+- GUI: « Construire dans un conteneur Docker » option above the Linux formats, ticked by default on Windows.
+- `doctor` tells whether Docker can be used.
+- `-c -` reads the config from standard input.
+- `$PACKAGINGONLINUX_CONTAINER_IMAGE` selects another image for `--container`.
+
+### Changed
+- On a non-Linux host, without the container, the Linux formats are refused instead of producing broken packages.
+
 ## [0.2.0]
 
 ### Added

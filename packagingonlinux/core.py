@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+from packagingonlinux import container as container_mode
 from packagingonlinux.backend import Backend, BuildContext
 from packagingonlinux.config import PLATFORMS, AppSpec, ConfigError
 from packagingonlinux.linux import staging as linux_staging
@@ -53,8 +55,22 @@ class BuildResult:
         return not self.errors
 
 
+NOT_LINUX_HOST = "Linux formats need a Linux host: build them with --container (Docker)"
+
+
+def linux_host() -> bool:
+    return sys.platform.startswith("linux")
+
+
 def doctor() -> list[ToolStatus]:
-    return [ToolStatus(b.name, b.label, b.platform, b.missing_tools(), b.install_hint) for b in BACKENDS.values()]
+    """What each backend lacks to build natively on this machine (not in a container)."""
+    out = []
+    for b in BACKENDS.values():
+        if b.platform == "linux" and not linux_host():
+            out.append(ToolStatus(b.name, b.label, b.platform, ["a Linux host"], "build it with --container (Docker)"))
+        else:
+            out.append(ToolStatus(b.name, b.label, b.platform, b.missing_tools(), b.install_hint))
+    return out
 
 
 def build_env(spec: AppSpec, platform: str) -> dict[str, str]:
@@ -86,9 +102,14 @@ def _prepare(spec: AppSpec, platform: str, stage: Path, log: Log) -> list[str]:
     return STAGERS[platform](spec, stage)
 
 
-def build(spec: AppSpec, formats: list[str] | None = None, log: Log = print) -> BuildResult:
+def build(spec: AppSpec, formats: list[str] | None = None, log: Log = print,
+          container: bool | None = None) -> BuildResult:
     """For each platform with a requested format: run its build command, stage its target
     once, then run each of its backends.
+
+    With `container` (default: on Windows only), the Linux platform is built in a Docker
+    container instead (see container.py); raises ContainerError, before building anything,
+    if Docker is missing or not running.
 
     A failing format (or a failing platform build command) does not stop the others;
     failures are reported in BuildResult.errors.
@@ -100,6 +121,12 @@ def build(spec: AppSpec, formats: list[str] | None = None, log: Log = print) -> 
     problems = spec.validate(platforms=())
     if problems:
         raise ConfigError("\n".join(problems))
+    if container is None:
+        container = container_mode.default_enabled()
+    if container and any(BACKENDS[f].platform == "linux" for f in formats):
+        problem = container_mode.docker_problem()
+        if problem:
+            raise container_mode.ContainerError(problem)
     result = BuildResult()
 
     spec.output_dir.mkdir(parents=True, exist_ok=True)
@@ -107,6 +134,9 @@ def build(spec: AppSpec, formats: list[str] | None = None, log: Log = print) -> 
         for platform in PLATFORMS:
             names = [f for f in formats if BACKENDS[f].platform == platform]
             if not names:
+                continue
+            if platform == "linux" and (container or not linux_host()):
+                _build_linux_elsewhere(spec, names, log, result, container)
                 continue
             stage = Path(tmp) / platform / "stage"
             try:
@@ -142,3 +172,23 @@ def build(spec: AppSpec, formats: list[str] | None = None, log: Log = print) -> 
                 for p in outputs:
                     log(f"[{name}] OK {p}")
     return result
+
+
+def _build_linux_elsewhere(spec: AppSpec, names: list[str], log: Log, result: BuildResult,
+                           container: bool) -> None:
+    """The Linux formats when they can't be built here: in the container, or not at all."""
+    if not container:
+        for name in names:
+            result.errors[name] = NOT_LINUX_HOST
+            log(f"[{name}] SKIPPED: {NOT_LINUX_HOST}")
+        return
+    try:
+        packages, errors = container_mode.build_linux(spec, names, log)
+    except (ConfigError, CommandError, OSError, ValueError) as e:
+        packages, errors = {}, {name: str(e) for name in names}
+        log(f"[linux] FAILED: {e}")
+    result.packages.update(packages)
+    result.errors.update(errors)
+    for name, paths in packages.items():
+        for p in paths:
+            log(f"[{name}] OK {p}")

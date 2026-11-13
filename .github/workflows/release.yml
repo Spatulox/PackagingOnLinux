@@ -82,6 +82,7 @@ jobs:
 
   # A Python + Qt app can't be frozen into an .exe from Linux: PyInstaller runs here and
   # the resulting folder ([windows] dir in packaging.toml) is packaged by the linux job.
+  # --add-data ships the sources too: --container mounts them in the Docker container.
   windows-app:
     needs: version
     runs-on: windows-latest
@@ -100,6 +101,7 @@ jobs:
         run: >
           pyinstaller --noconfirm --windowed --name PackagingOnLinux
           --icon selfpack/packagingonlinux.ico --paths . --collect-submodules packagingonlinux --exclude-module PyQt6
+          --add-data packagingonlinux:packagingonlinux-src
           --workpath build/pyinstaller --distpath build/windows
           selfpack/frozen_launcher.py
       - uses: actions/upload-artifact@v7
@@ -127,6 +129,7 @@ jobs:
         run: >
           pyinstaller --noconfirm --name packagingonlinux
           --paths . --collect-submodules packagingonlinux --exclude-module PyQt6
+          --add-data packagingonlinux:packagingonlinux-src
           --workpath build/pyinstaller --distpath build/linux
           selfpack/frozen_launcher.py
       - run: test "$(build/linux/packagingonlinux/packagingonlinux --version)" = "${{ needs.version.outputs.version }}"

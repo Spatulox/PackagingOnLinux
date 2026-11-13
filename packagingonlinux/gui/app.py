@@ -189,11 +189,11 @@ class MainWindow(QMainWindow):
     # ---- build ------------------------------------------------------------------
     def start_build(self) -> None:
         spec = self.current_spec()
-        # Ticked formats are skipped, with a note in the log, when their tools are missing
-        # (e.g. nsis without makensis) or their platform has nothing to package (e.g. the
-        # Windows formats, ticked by default, when the Windows tab is empty).
-        notes = [f"⚠ {name} ignoré : outil(s) manquant(s) : {', '.join(self.formats.status[name].missing)}"
-                 for name in self.formats.formats() if not self.formats.status[name].ok]
+        # Ticked formats are skipped, with a note in the log, when they can't be built here
+        # (e.g. nsis without makensis, snap in the container) or their platform has nothing
+        # to package (e.g. the Windows formats, ticked by default, when the Windows tab is empty).
+        notes = [f"⚠ {name} ignoré : {reason}" for name in self.formats.formats()
+                 if (reason := self.formats.unavailable_reason(name))]
         formats = []
         for name in self.formats.buildable_formats():
             platform = BACKENDS[name].platform
@@ -236,7 +236,7 @@ class MainWindow(QMainWindow):
             self.log.appendPlainText("\n".join(notes) + "\n")
         self.build_button.setEnabled(False)
         self.build_button.setText("Construction en cours…")
-        self.worker = BuildWorker(spec, formats, self)
+        self.worker = BuildWorker(spec, formats, self.formats.use_container(), self)
         self.worker.log.connect(self.log.appendPlainText)
         self.worker.done.connect(self._build_done)
         self.worker.failed.connect(self._build_failed)

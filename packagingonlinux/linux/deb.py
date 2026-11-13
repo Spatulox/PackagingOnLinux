@@ -32,7 +32,7 @@ class DebBackend(Backend):
     name = "deb"
     label = "Debian / Ubuntu (.deb)"
     required_tools = ("dpkg-deb",)
-    install_hint = "apt install dpkg  (or build in a debian container)"
+    install_hint = "apt install dpkg  (or build with --container)"
 
     def build(self, ctx: BuildContext) -> list[Path]:
         spec = ctx.spec

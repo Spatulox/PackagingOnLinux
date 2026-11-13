@@ -54,7 +54,7 @@ class RpmBackend(Backend):
     name = "rpm"
     label = "Fedora / openSUSE / RHEL (.rpm)"
     required_tools = ("rpmbuild",)
-    install_hint = "dnf install rpm-build  |  apt install rpm  (or build in a fedora container)"
+    install_hint = "dnf install rpm-build  |  apt install rpm  (or build with --container)"
 
     def build(self, ctx: BuildContext) -> list[Path]:
         spec = ctx.spec

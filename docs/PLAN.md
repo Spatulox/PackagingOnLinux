@@ -7,7 +7,7 @@
 - [x] 3. Interface graphique Qt (PySide6 ou PyQt6)
 - [ ] 4. CI GitHub / GitLab
 - [x] 5. AppImage, puis Flatpak, puis Snap
-- [ ] 6. Construction en conteneur (`--container`)
+- [x] 6. Construction en conteneur (`--container`), par défaut sous Windows
 - [ ] 7. Dogfooding : PackagingOnLinux se package lui-même (fait pour la release : deb, rpm, tar.gz, AppImage, Flatpak, Snap, zip, setup.exe ; reste la CI de l'étape 4)
 - [x] 8. Nettoyage : suppression des anciens scripts bash (`scripts/` et le script de purge), mise à jour du README
 - [ ] 9. Langue de l'interface : anglais et français, au choix dans les paramètres
@@ -26,7 +26,7 @@ Au départ, le repo contenait deux scripts bash (`scripts/deb.sh`, `scripts/rpm.
 - **Config déclarative `packaging.toml`**, que la GUI lit et écrit. C'est le format d'échange entre la GUI, la CLI et la CI : on configure un projet visuellement, on committe le `packaging.toml`, et la CI produit les mêmes paquets.
 - **Indépendant du bureau** : uniquement des standards freedesktop. Le `.desktop` est validé avec `desktop-file-validate`, l'icône va dans le thème `hicolor` (`usr/share/icons/hicolor/<taille>/apps/<id>.png`), et un AppStream `metainfo.xml` est généré (requis par Flatpak, utile pour GNOME Logiciels comme pour KDE Discover). Aucun `sudo` ni `gtk-update-icon-cache` en dur dans les scripts de mainteneur : deb et rpm ont déjà des triggers système pour ça.
 - **Pas de root pour construire** : `dpkg-deb --root-owner-group` remplace les `sudo chown`, et `rpmbuild` utilise un `--define "_topdir <tmp>"` au lieu de `~/rpmbuild`.
-- **Portabilité de l'hôte** : chaque backend déclare les outils dont il a besoin, et la commande `doctor` dit ce qui manque. Avec l'option `--container` (docker/podman), chaque format sera construit dans l'image officielle adaptée (debian, fedora, ubuntu+snapcraft, flatpak-builder). On pourra donc produire un `.rpm` depuis Debian, etc.
+- **Portabilité de l'hôte** : chaque backend déclare les outils dont il a besoin, et la commande `doctor` dit ce qui manque. Avec l'option `--container` (Docker), la plateforme Linux (sa commande de build et ses formats) est construite dans un conteneur, à partir d'une seule image (`ubuntu:24.04` + tous les outils sauf snapcraft, construite au premier usage). On peut donc produire un `.rpm` depuis Debian, et tous les formats Linux sauf snap depuis Windows, où ce mode est activé par défaut. Les formats Windows restent construits sur l'hôte.
 
 ## Architecture
 
@@ -38,6 +38,7 @@ packagingonlinux/            # le code de l'outil, rangé par plateforme
                              # + registre BACKENDS (formats) et STAGERS (arbre de staging par plateforme)
   backend.py                 # interface: platform, required_tools, build(ctx) -> list[Path]
   runner.py                  # exécution des commandes avec journal en direct
+  container.py               # --container : la plateforme Linux construite dans un conteneur Docker
   png.py                     # lecture de la taille d'un PNG (icônes Linux et Windows)
   version.py                 # incrément de version : fix (x.y.Z), minor (x.Y.0), major (X.0.0)
   linux/
@@ -56,7 +57,7 @@ packagingonlinux/            # le code de l'outil, rangé par plateforme
   gui/
     app.py                   # QMainWindow, point d'entrée `packagingonlinux-gui`
     form.py                  # formulaire AppSpec (champs, sélecteurs de fichiers, aperçu de l'icône)
-    formats.py               # cases à cocher des formats + état « outil dispo/manquant » (issu de doctor)
+    formats.py               # cases à cocher des formats + état « outil dispo/manquant » (issu de doctor) + case « conteneur Docker »
     recent.py                # fichiers récemment ouverts (QSettings), menu Fichier > Ouvrir un fichier récent
     release.py               # popup avant construction : type de release (fix/minor/major/aucune) + étape (finale/rc/beta/alpha, version x.y.z~rcN)
     worker.py                # QThread qui lance core.build et diffuse les logs en direct
@@ -149,7 +150,7 @@ L'architecture est détectée automatiquement à partir de l'en-tête ELF (amd64
 3. **GUI Qt** : formulaire, ouverture et enregistrement du `packaging.toml`, cases des formats reliées à `doctor`, build dans un `QThread` avec logs en direct, bouton « Ouvrir le dossier de sortie ».
 4. **CI** : action GitHub composite et template GitLab. Un job par format (matrice), chacun dans son image dédiée ; les paquets sont publiés comme artefacts, et attachés à la release quand un tag est poussé.
 5. **AppImage**, puis **Flatpak**, puis **Snap** (du plus simple au plus contraignant en CI). Chaque nouveau backend apparaît automatiquement dans la GUI.
-6. **Option `--container`** (case à cocher dans la GUI) pour construire tous les formats localement depuis n'importe quelle distro.
+6. **Option `--container`** (case à cocher dans la GUI) pour construire les formats Linux localement depuis n'importe quelle distro, et depuis Windows (par défaut). Voir la section dédiée plus bas.
 7. **Dogfooding** : PackagingOnLinux se package lui-même (AppImage et Flatpak de la GUI) via son propre `packaging.toml` et sa propre CI.
 8. **Nettoyage** : suppression des anciens scripts bash (`scripts/` et le script de purge), mise à jour du README et de `CLAUDE.md`.
 9. **Langue de l'interface (EN / FR)** : voir la section dédiée plus bas.
@@ -188,6 +189,16 @@ PackagingOnLinux package des binaires **déjà compilés**. Un binaire Linux ne 
 - **GUI** : onglets « Linux » et « Windows » dans « Fichiers à empaqueter » ; les cases des formats sont groupées par plateforme.
 - **Vérification** : tests unitaires du script NSIS généré, de la détection PE, de l'icône et du zip ; compilation réelle avec `makensis` quand il est installé. Reste à faire en CI : installer en silencieux (`setup.exe /S`) l'installeur de l'app `hello` sur un runner `windows-latest` et vérifier que l'exécutable et le désinstalleur sont présents.
 - **Hors périmètre** : MSI (WiX ne fonctionne que sous Windows) et MSIX/Microsoft Store.
+
+## Construction en conteneur (`--container`)
+
+- **Docker uniquement** (Docker Desktop sous Windows et macOS, Docker Engine sous Linux). S'il est absent ou arrêté, `build` s'arrête avant de rien construire avec un message qui dit quoi faire (code de sortie 2, boîte d'erreur dans la GUI). `doctor` indique l'état de Docker.
+- **Par défaut sous Windows**, où les outils Linux n'existent pas ; ailleurs avec `--container` ou la case « Construire dans un conteneur Docker » de la GUI. `--no-container` le désactive. Sans conteneur sur un hôte non Linux, les formats Linux sont refusés (ils produiraient par exemple un tar.gz sans bit exécutable).
+- **Seule la plateforme Linux va dans le conteneur** : sa commande de build y tourne, sous Linux, puis ses formats. La commande et les formats Windows restent sur l'hôte (une compilation Windows doit tourner sous Windows).
+- **Une image** `packagingonlinux-builder:<hash du Dockerfile>`, définie dans `container.py` et construite au premier usage (`docker build -`). `$PACKAGINGONLINUX_CONTAINER_IMAGE` en désigne une autre, par exemple dérivée avec un compilateur pour la commande de build.
+- **Le conteneur lance l'outil lui-même** : `python3 -m packagingonlinux build -c - --no-container`, depuis les sources de PackagingOnLinux montées en lecture seule (livrées dans `_internal/packagingonlinux-src` par les versions PyInstaller). La config passe sur l'entrée standard, ce qui marche aussi pour un formulaire non enregistré de la GUI. Le dossier de la config est monté sur `/src` (les fichiers `[linux]` doivent s'y trouver), le dossier de sortie sur `/out`, et un volume `packagingonlinux-cache` garde le runtime AppImage et les runtimes Flatpak.
+- Sur un hôte POSIX, le conteneur tourne avec l'uid de l'utilisateur, pour que les fichiers produits lui appartiennent. Flatpak demande `--privileged` (bubblewrap).
+- **Limites** : snap n'est pas pris en charge (snapcraft n'est distribué qu'en snap) ; `[deps] auto` ne voit que les bibliothèques installées dans l'image ; pas de `--container` depuis l'AppImage ou le Flatpak de PackagingOnLinux (Docker ne voit pas leurs fichiers).
 
 ## Vérification
 
