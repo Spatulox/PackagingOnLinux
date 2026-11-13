@@ -8,12 +8,10 @@ rpm: nothing to do here, rpmbuild's AutoReq adds `libfoo.so.N()(64bit)` requirem
 from __future__ import annotations
 
 import re
-import shutil
-import subprocess
-import tempfile
 from pathlib import Path
 
 from packagingonlinux.linux import elf
+from packagingonlinux.runner import capture, temp_dir, which
 
 # Packages present on every Debian-based system: never worth listing.
 _DEB_ESSENTIAL = {
@@ -32,9 +30,9 @@ def elf_files(paths: list[Path]) -> list[Path]:
 
 
 def _shlibdeps(binaries: list[Path], search_dirs: list[Path]) -> list[str] | None:
-    if not shutil.which("dpkg-shlibdeps"):
+    if not which("dpkg-shlibdeps"):
         return None
-    with tempfile.TemporaryDirectory(prefix="col-shlibdeps-") as tmp:
+    with temp_dir(prefix="col-shlibdeps-") as tmp:
         (Path(tmp) / "debian").mkdir()
         (Path(tmp) / "debian/control").write_text(
             "Source: col-probe\n\nPackage: col-probe\nArchitecture: any\n"
@@ -42,7 +40,7 @@ def _shlibdeps(binaries: list[Path], search_dirs: list[Path]) -> list[str] | Non
         cmd = ["dpkg-shlibdeps", "-O", "--ignore-missing-info", "--warnings=0"]
         cmd += [f"-l{d}" for d in search_dirs]
         cmd += [f"-e{b}" for b in binaries]
-        proc = subprocess.run(cmd, cwd=tmp, capture_output=True, text=True)
+        proc = capture(cmd, cwd=Path(tmp))
     if proc.returncode != 0:
         return None
     m = re.search(r"^shlibs:Depends=(.*)$", proc.stdout, re.M)
@@ -52,15 +50,15 @@ def _shlibdeps(binaries: list[Path], search_dirs: list[Path]) -> list[str] | Non
 
 
 def _ldd_dpkg(binaries: list[Path]) -> list[str]:
-    if not (shutil.which("ldd") and shutil.which("dpkg")):
+    if not (which("ldd") and which("dpkg")):
         return []
     libs: set[str] = set()
     for b in binaries:
-        proc = subprocess.run(["ldd", str(b)], capture_output=True, text=True)
+        proc = capture(["ldd", str(b)])
         libs.update(re.findall(r"=> (/\S+) \(", proc.stdout))
     packages: set[str] = set()
     for lib in sorted(libs):
-        proc = subprocess.run(["dpkg", "-S", lib], capture_output=True, text=True)
+        proc = capture(["dpkg", "-S", lib])
         if proc.returncode == 0:
             pkg = proc.stdout.split(":")[0].strip()
             if pkg not in _DEB_ESSENTIAL:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -11,10 +10,13 @@ from typing import Callable
 from packagingonlinux.backend import Backend, BuildContext
 from packagingonlinux.config import PLATFORMS, AppSpec, ConfigError
 from packagingonlinux.linux import staging as linux_staging
+from packagingonlinux.linux.appimage import AppImageBackend
 from packagingonlinux.linux.deb import DebBackend
+from packagingonlinux.linux.flatpak import FlatpakBackend
 from packagingonlinux.linux.rpm import RpmBackend
+from packagingonlinux.linux.snap import SnapBackend
 from packagingonlinux.linux.tarball import TarballBackend
-from packagingonlinux.runner import CommandError, Log, run
+from packagingonlinux.runner import CommandError, Log, run, temp_dir
 from packagingonlinux.windows import staging as windows_staging
 from packagingonlinux.windows.nsis import NsisBackend
 from packagingonlinux.windows.zip import ZipBackend
@@ -23,7 +25,8 @@ from packagingonlinux.windows.zip import ZipBackend
 # Every packaging backend, by format name. Order = display order in the CLI and the GUI.
 # To add a format, write its Backend subclass in linux/ or windows/ and list it here.
 BACKENDS: dict[str, Backend] = {b.name: b for b in (
-    DebBackend(), RpmBackend(), TarballBackend(), ZipBackend(), NsisBackend())}
+    DebBackend(), RpmBackend(), TarballBackend(), AppImageBackend(), FlatpakBackend(), SnapBackend(),
+    ZipBackend(), NsisBackend())}
 
 
 @dataclass
@@ -100,7 +103,7 @@ def build(spec: AppSpec, formats: list[str] | None = None, log: Log = print) -> 
     result = BuildResult()
 
     spec.output_dir.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="packagingonlinux-") as tmp:
+    with temp_dir() as tmp:
         for platform in PLATFORMS:
             names = [f for f in formats if BACKENDS[f].platform == platform]
             if not names:

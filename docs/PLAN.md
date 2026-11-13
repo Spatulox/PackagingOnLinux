@@ -6,9 +6,9 @@
 - [x] 2. deb + rpm (sans sudo, détection des dépendances)
 - [x] 3. Interface graphique Qt (PySide6 ou PyQt6)
 - [ ] 4. CI GitHub / GitLab
-- [ ] 5. AppImage, puis Flatpak, puis Snap
+- [x] 5. AppImage, puis Flatpak, puis Snap
 - [ ] 6. Construction en conteneur (`--container`)
-- [ ] 7. Dogfooding : PackagingOnLinux se package lui-même
+- [ ] 7. Dogfooding : PackagingOnLinux se package lui-même (fait pour la release : deb, rpm, tar.gz, AppImage, Flatpak, Snap, zip, setup.exe ; reste la CI de l'étape 4)
 - [x] 8. Nettoyage : suppression des anciens scripts bash (`scripts/` et le script de purge), mise à jour du README
 - [ ] 9. Langue de l'interface : anglais et français, au choix dans les paramètres
 - [x] 10. Windows : installeur `.exe` (NSIS) et archive portable `.zip`, construits depuis Linux
@@ -45,7 +45,9 @@ packagingonlinux/            # le code de l'outil, rangé par plateforme
     deps.py                  # détection des dépendances (reprend l'ancien scripts/list_dep.py)
     staging.py               # arbre FHS commun (usr/bin, .desktop, icônes hicolor, metainfo)
     deb.py  rpm.py  tarball.py
-    appimage.py  flatpak.py  snap.py      # à venir
+    appimage.py              # AppDir + mksquashfs + runtime type2
+    flatpak.py               # manifeste + flatpak-builder + build-bundle
+    snap.py                  # snapcraft.yaml + snapcraft pack
   windows/
     pe.py                    # architecture depuis l'en-tête PE d'un .exe
     ico.py                   # icône .ico en Python pur
@@ -132,9 +134,9 @@ dir = "dist"
 | deb | `dpkg-deb --root-owner-group` | `Depends` via `dpkg-shlibdeps`, sinon ldd + `dpkg -S` ; vérification avec `lintian` | fait |
 | rpm | `rpmbuild -bb`, topdir temporaire | les dépendances `.so` sont détectées automatiquement par rpm (AutoReq) ; vérification avec `rpmlint` | fait |
 | tar.gz | Python `tarfile` | solution de repli universelle | fait |
-| AppImage | `appimagetool` (téléchargé dans un cache, à version fixe) | AppDir généré depuis le staging. Les libs GTK/WebKit ne sont pas embarquées par défaut (option `linuxdeploy` plus tard) | à faire |
-| Flatpak | `flatpak-builder` + `flatpak build-bundle` | manifest généré, sortie `.flatpak`. En CI : conteneur `ghcr.io/flathub-infra/flatpak-github-actions`. Nécessite une icône carrée | à faire |
-| Snap | `snapcraft --destructive-mode` dans un conteneur Ubuntu | confinement `strict` + extension `gnome` si GTK, sinon `classic` | à faire |
+| AppImage | `mksquashfs` + runtime type2 (release épinglée, vérifiée par sha256, téléchargée dans `~/.cache/packagingonlinux/`, ou `$PACKAGINGONLINUX_APPIMAGE_RUNTIME` hors ligne) | AppDir = staging + `AppRun`, `.desktop` et icône à la racine. Ni `appimagetool` ni FUSE pour construire. Les libs GTK/WebKit ne sont pas embarquées (option `linuxdeploy` plus tard) | fait |
+| Flatpak | `flatpak-builder` + `flatpak build-bundle` | manifeste généré (un module `simple` qui copie le staging dans `/app`), sortie `.flatpak` qui renvoie vers Flathub pour le runtime. Runtime et permissions dans `[flatpak]` (par défaut `org.freedesktop.Platform`, affichage + GPU, pas d'accès aux fichiers). Nécessite une icône carrée | fait |
+| Snap | `snapcraft pack` (LXD par défaut, ou `SNAPCRAFT_BUILD_ENVIRONMENT=host` en root sur l'Ubuntu de la base, en CI) | `snapcraft.yaml` généré en JSON (une part `dump` du staging). Options dans `[snap]` : base `core24`, confinement `strict` par défaut (plugs bureau), `classic`, extensions (`gnome`, `kde-neon-6`), `stage_packages` | fait |
 | zip (Windows) | Python `zipfile` | version portable, sans installation | fait |
 | nsis (Windows) | `makensis` | installeur `setup.exe` par utilisateur, sans droits admin | fait |
 

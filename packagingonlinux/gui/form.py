@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 from packagingonlinux.linux import elf
 from packagingonlinux.windows import pe
-from packagingonlinux.config import COMMON_LICENSES, MAIN_CATEGORIES, AppSpec, Target, suggest_id
+from packagingonlinux.config import (
+    COMMON_LICENSES, MAIN_CATEGORIES, AppSpec, FlatpakOptions, SnapOptions, Target, suggest_id,
+)
 from packagingonlinux.gui.qt import (
     QCheckBox, QComboBox, QFileDialog, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
     QPixmap, QPlainTextEdit, QPushButton, Qt, QTabWidget, QVBoxLayout, QWidget, Signal,
@@ -47,6 +50,38 @@ class PathField(QWidget):
 
 def _split(text: str) -> list[str]:
     return [p.strip() for p in text.split(",") if p.strip()]
+
+
+class ManPagesField(QWidget):
+    """Man pages to install: comma-separated paths, plus a button that adds files."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.edit = QLineEdit()
+        self.edit.setPlaceholderText("optionnel, ex. docs/monapp.1  (section en extension)")
+        self.edit.setToolTip(
+            "Pages de manuel installées dans /usr/share/man/man<N>/ par les formats Linux.\n"
+            "Le nom se termine par la section : monapp.1, monapp.conf.5, ou déjà compressé : monapp.1.gz.\n"
+            "Plusieurs pages séparées par des virgules.")
+        button = QPushButton("Ajouter…")
+        button.clicked.connect(self._browse)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.edit, 1)
+        layout.addWidget(button)
+
+    def _browse(self) -> None:
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Choisir les pages de manuel", str(Path.cwd()),
+            "Pages de manuel (*.[1-9] *.[1-9]*.gz *.[1-9]*);;Tous les fichiers (*)")
+        if paths:
+            self.set_paths(self.paths() + [Path(p) for p in paths])
+
+    def paths(self) -> list[Path]:
+        return [Path(p).expanduser().resolve() for p in _split(self.edit.text())]
+
+    def set_paths(self, paths: list[Path]) -> None:
+        self.edit.setText(", ".join(str(p) for p in paths))
 
 
 class CategoriesField(QWidget):
@@ -137,6 +172,9 @@ class TargetWidget(QWidget):
         icon_row.addWidget(self.icon_preview)
         self._form.addRow("Icône", icon_row)
         self._form.addRow("Commande de compilation", self.command)
+        self.man = ManPagesField()
+        if not windows:  # Windows has no man pages
+            self._form.addRow("Pages de manuel", self.man)
 
         self.mode.currentIndexChanged.connect(self._update_mode)
         self.binary.changed.connect(self._update_arch)
@@ -196,6 +234,7 @@ class TargetWidget(QWidget):
         self.exec.setText(target.exec)
         self.icon.set_path(target.icon)
         self.command.setText(target.command)
+        self.man.set_paths(target.man)
 
     def target(self) -> Target | None:
         """The edited target, or None when every field is empty (= no section for this platform)."""
@@ -206,6 +245,7 @@ class TargetWidget(QWidget):
             exec=self.exec.text().strip() if dir_mode else "",
             icon=self.icon.path(),
             command=self.command.text().strip(),
+            man=self.man.paths() if self.platform == "linux" else [],
         )
         return None if target == Target() else target
 
@@ -218,6 +258,8 @@ class AppForm(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._id_auto = True
+        self._flatpak = FlatpakOptions()
+        self._snap = SnapOptions()
 
         # --- application metadata
         self.name = QLineEdit()
@@ -319,6 +361,9 @@ class AppForm(QWidget):
     # ---- AppSpec <-> widgets --------------------------------------------------
     def set_spec(self, spec: AppSpec) -> None:
         self._id_auto = False
+        # Per-format options have no widget yet: keep them so that saving does not drop them.
+        self._flatpak = spec.flatpak
+        self._snap = spec.snap
         self.name.setText(spec.name)
         self.app_id.setText(spec.id)
         self.version.setText(spec.version)
@@ -351,6 +396,8 @@ class AppForm(QWidget):
             deps_auto=self.deps_auto.isChecked(),
             deps_deb=_split(self.deps_deb.text()),
             deps_rpm=_split(self.deps_rpm.text()),
+            flatpak=copy.deepcopy(self._flatpak),
+            snap=copy.deepcopy(self._snap),
             formats=formats,
             output_dir=output_dir,
             base_dir=base_dir,

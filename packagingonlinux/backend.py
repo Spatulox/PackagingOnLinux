@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
 from packagingonlinux.config import AppSpec
-from packagingonlinux.runner import Log
+from packagingonlinux.runner import Log, which
 
 
 @dataclass
@@ -25,7 +24,7 @@ class Backend:
     install_hint: str = ""
 
     def missing_tools(self) -> list[str]:
-        return [t for t in self.required_tools if shutil.which(t) is None]
+        return [t for t in self.required_tools if not which(t)]
 
     def build(self, ctx: BuildContext) -> list[Path]:
         raise NotImplementedError

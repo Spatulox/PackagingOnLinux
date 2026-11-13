@@ -7,7 +7,9 @@ Package any prebuilt application into several Linux distribution formats, and in
 | deb | done |
 | rpm | done |
 | tar.gz | done |
-| AppImage, Flatpak, Snap | planned |
+| AppImage | done |
+| Flatpak | done |
+| Snap | done |
 | Windows installer (`setup.exe`, NSIS) | done |
 | Windows portable `.zip` | done |
 
@@ -27,6 +29,16 @@ sudo dnf install ./packagingonlinux-*.rpm        # Fedora
 ```
 
 Use `apt install ./file.deb` rather than `dpkg -i`, which does not install dependencies.
+
+The AppImage, Flatpak and Snap include their own Python and Qt, so they work on any distribution:
+
+```bash
+chmod +x PackagingOnLinux-*.AppImage && ./PackagingOnLinux-*.AppImage   # nothing to install
+flatpak install --user --bundle PackagingOnLinux-*.flatpak               # pulls the runtime from Flathub
+sudo snap install --dangerous --classic packagingonlinux_*.snap
+```
+
+To build packages, PackagingOnLinux runs tools installed on your system (`dpkg-deb`, `rpmbuild`, your build command...). Its Flatpak therefore runs them outside its sandbox (with `flatpak-spawn --host`) and can read and write your home folder, and its snap uses classic confinement. Both have the same access as the deb.
 
 From the sources:
 
@@ -54,7 +66,13 @@ packagingonlinux check -c packaging.toml               # validate the config and
 packagingonlinux build -c packaging.toml [-f deb,rpm] [-o dist]
 ```
 
-A failing format does not stop the others; errors are listed at the end.
+A failing format does not stop the others; errors are listed at the end. `packagingonlinux --help` lists the formats, the tools each one needs, examples and exit statuses; the full reference is the man page, readable from the sources with `man -l docs/man/packagingonlinux.1`.
+
+The `appimage` format needs `mksquashfs` (`squashfs-tools`). The first build downloads the AppImage runtime (a pinned release, checked against its sha256) into `~/.cache/packagingonlinux/`; offline, download it yourself and set `PACKAGINGONLINUX_APPIMAGE_RUNTIME` to its path. The app's libraries are not bundled: like the tar.gz, the AppImage uses those of the user's system.
+
+The `flatpak` format needs `flatpak` and `flatpak-builder` (plus `librsvg2-common` for an SVG icon), and a square icon. The first build installs the runtime and its SDK for the current user from Flathub. The app runs on that runtime, in a sandbox: `[flatpak] finish_args` lists what it may access (by default the display and the GPU, not the user's files; add `--filesystem=home`, `--share=network`… as needed). Install the result with `flatpak install --user --bundle <file>.flatpak`.
+
+The `snap` format needs `snapcraft` (`snap install snapcraft --classic`). By default it builds in an LXD container (`lxd init --auto` once); in CI, on the Ubuntu release matching `[snap] base` (24.04 for `core24`), set `SNAPCRAFT_BUILD_ENVIRONMENT=host` and run the build as root. This is the only format that may need root. The snap name is the package name (lowercase app name): at most 40 characters among `a-z`, `0-9` and `-`. Install the result with `snap install --dangerous <file>.snap` (add `--classic` for a classic snap).
 
 ## `packaging.toml`
 
@@ -74,6 +92,7 @@ categories = ["Utility"]
 command = "make"                  # optional, see below
 binary = "build/myapp"            # or: dir = "dist/" + exec = "bin/myapp"
 icon = "icons/myapp.png"          # square PNG or SVG
+man = ["docs/myapp.1"]            # optional man pages (name ends with the section)
 
 [windows]                         # optional: only for the zip and nsis formats
 command = "make windows"
@@ -85,6 +104,20 @@ auto = true                       # detect shared library dependencies
 deb = ["libgtk-3-0"]              # extra dependencies, per format
 rpm = ["gtk3"]
 
+[flatpak]                         # optional, these are the defaults
+runtime = "org.freedesktop.Platform"
+runtime_version = "26.08"
+sdk = ""                          # empty: the runtime's SDK (org.freedesktop.Sdk)
+finish_args = ["--share=ipc", "--socket=wayland", "--socket=fallback-x11", "--device=dri"]
+
+[snap]                            # optional, these are the defaults
+base = "core24"
+confinement = "strict"            # or "classic" (same access as a deb), "devmode"
+grade = ""                        # empty: "devel" if the version has a "~", else "stable"
+plugs = ["desktop", "desktop-legacy", "wayland", "x11", "opengl", "home", "network"]
+extensions = []                   # e.g. ["gnome"] for a GTK app, ["kde-neon-6"] for Qt 6
+stage_packages = []               # Ubuntu packages to bundle (libraries the base lacks)
+
 [output]
 formats = ["deb", "rpm", "tarball", "zip", "nsis"]
 dir = "dist"
@@ -93,6 +126,8 @@ dir = "dist"
 A platform's `command` runs in the config's folder before packaging, only when a format of that platform is built (so `-f deb` never runs the Windows build). It receives `$APP_ID`, `$APP_NAME`, `$APP_VERSION` and `$APP_PLATFORM` (`linux` or `windows`). Older configs with `[files]` and `[build] command` are still read as `[linux]`.
 
 Example: [`packaging.toml`](packaging.toml), which packages PackagingOnLinux itself.
+
+Every section and key, with its type and default, is described in the `packaging.toml(5)` man page ([`docs/man/packaging.toml.5`](docs/man/packaging.toml.5), `man -l docs/man/packaging.toml.5`).
 
 Packages only use freedesktop standards (a `.desktop` file, a hicolor icon and AppStream metainfo), so the app appears in the menus of any desktop environment. Building never needs root.
 

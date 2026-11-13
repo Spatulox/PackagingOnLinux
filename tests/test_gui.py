@@ -79,6 +79,29 @@ def test_form_save_roundtrip(window, hello_project, hello_spec):
     assert again.linux == hello_spec.linux
 
 
+def test_save_keeps_format_options(window, hello_project):
+    hello_project.write_text(hello_project.read_text() + '\n[flatpak]\nfinish_args = ["--filesystem=home"]\n'
+                             '\n[snap]\nconfinement = "classic"\n')
+    window.open_config(hello_project)
+    window.form.summary.setText("Changed")
+    assert window.save()
+    again = config.load(hello_project)
+    assert again.flatpak.finish_args == ["--filesystem=home"]
+    assert again.snap.confinement == "classic"
+
+
+def test_man_pages_roundtrip(window, hello_project):
+    pages = [hello_project.parent / "hello.1", hello_project.parent / "hello.conf.5"]
+    for page in pages:
+        page.write_text(".TH X 1\n")
+    window.form.linux.man.set_paths(pages)
+    assert window.save()
+    assert config.load(hello_project).linux.man == pages
+    window.open_config(hello_project)
+    assert window.form.linux.man.paths() == pages
+    assert window.form.windows._form.indexOf(window.form.windows.man) == -1  # Linux only
+
+
 def test_id_is_suggested_from_name(qtbot):
     w = MainWindow()
     qtbot.addWidget(w)

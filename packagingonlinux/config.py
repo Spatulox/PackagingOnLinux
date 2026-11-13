@@ -5,9 +5,11 @@ it are resolved against the directory that contains the file.
 
 Schema:
     [app]     id, name, version, summary, description, license, maintainer, homepage, categories
-    [linux]   command, binary | dir (+ exec), icon
-    [windows] command, binary | dir (+ exec), icon      (optional, same keys)
+    [linux]   command, binary | dir (+ exec), icon, man
+    [windows] command, binary | dir (+ exec), icon      (optional, same keys but man)
     [deps]    auto, deb, rpm        (optional, Linux only)
+    [flatpak] runtime, runtime_version, sdk, finish_args      (optional)
+    [snap]    base, confinement, grade, plugs, extensions, stage_packages   (optional)
     [output]  formats, dir
 
 Each platform's `command` is optional and runs before packaging, only when a format of that
@@ -52,13 +54,14 @@ class ConfigError(ValueError):
 @dataclass
 class Target:
     """What to package for one platform: a single executable or a directory, plus an icon,
-    and the optional command that produces them."""
+    man pages (Linux only), and the optional command that produces them."""
 
     binary: Path | None = None
     dir: Path | None = None
     exec: str = ""
     icon: Path | None = None
     command: str = ""
+    man: list[Path] = field(default_factory=list)
 
     @property
     def exec_name(self) -> str:
@@ -90,7 +93,54 @@ class Target:
                 problems.append(f"executable not found: {self.dir / self.exec}")
             if self.icon and not self.icon.is_file():
                 problems.append(f"icon not found: {self.icon}")
+        if self.man and section != "linux":
+            problems.append(f"[{section}] man pages are only installed by Linux formats: move 'man' to [linux]")
+        for page in self.man:
+            if man_section(page) is None:
+                problems.append(f"man page {page.name!r} must end with its section, e.g. myapp.1 or myapp.1.gz")
+            elif check_files and not page.is_file():
+                problems.append(f"man page not found: {page}")
         return problems
+
+
+def man_section(page: Path) -> str | None:
+    """The man section digit from a page's name ("myapp.1", "foo.3pm", "myapp.1.gz" -> "1",
+    "3", "1"), or None."""
+    name = page.name.removesuffix(".gz")
+    m = re.search(r"\.([1-9])[a-z]*$", name)
+    return m.group(1) if m else None
+
+
+FLATPAK_FINISH_ARGS = ["--share=ipc", "--socket=wayland", "--socket=fallback-x11", "--device=dri"]
+
+
+@dataclass
+class FlatpakOptions:
+    """[flatpak]: the runtime the app runs on and its sandbox permissions (finish-args)."""
+
+    runtime: str = "org.freedesktop.Platform"
+    runtime_version: str = "26.08"
+    sdk: str = ""   # empty: the runtime's SDK (org.foo.Platform -> org.foo.Sdk)
+    finish_args: list[str] = field(default_factory=lambda: list(FLATPAK_FINISH_ARGS))
+
+    @property
+    def sdk_name(self) -> str:
+        return self.sdk or self.runtime.replace(".Platform", ".Sdk")
+
+
+SNAP_PLUGS = ["desktop", "desktop-legacy", "wayland", "x11", "opengl", "home", "network"]
+
+
+@dataclass
+class SnapOptions:
+    """[snap]: base snap, confinement and the interfaces (plugs) a strict snap gets."""
+
+    base: str = "core24"
+    confinement: str = "strict"   # strict, classic or devmode
+    grade: str = ""               # empty: "devel" for a pre-release version (with "~"), else "stable"
+    plugs: list[str] = field(default_factory=lambda: list(SNAP_PLUGS))
+    extensions: list[str] = field(default_factory=list)       # e.g. ["gnome"] for a GTK app
+    stage_packages: list[str] = field(default_factory=list)   # Ubuntu packages to bundle
 
 
 @dataclass
@@ -109,6 +159,8 @@ class AppSpec:
     deps_auto: bool = True
     deps_deb: list[str] = field(default_factory=list)
     deps_rpm: list[str] = field(default_factory=list)
+    flatpak: FlatpakOptions = field(default_factory=FlatpakOptions)
+    snap: SnapOptions = field(default_factory=SnapOptions)
     formats: list[str] = field(default_factory=lambda: ["deb", "rpm"])
     output_dir: Path = Path("dist")
     base_dir: Path = Path(".")
@@ -216,14 +268,40 @@ def _target(base_dir: Path, table: dict, where: str) -> Target:
         exec=str(table.get("exec", "")),
         icon=_path(base_dir, table.get("icon")),
         command=str(table.get("command", "")),
+        man=[_path(base_dir, page) for page in _str_list(table, "man", where)],
     )
+
+
+def _options(cls, table: object, where: str):
+    """Build an options dataclass (FlatpakOptions...) from its TOML table."""
+    if not isinstance(table, dict):
+        raise ConfigError(f"[{where}] must be a table")
+    defaults = cls()
+    unknown = set(table) - set(vars(defaults))
+    if unknown:
+        raise ConfigError(f"[{where}] unknown key(s): {', '.join(sorted(unknown))}")
+    values = {}
+    for key, value in table.items():
+        if isinstance(getattr(defaults, key), list):
+            values[key] = _str_list(table, key, where)
+        elif isinstance(value, str):
+            values[key] = value
+        else:
+            raise ConfigError(f"[{where}] {key} must be a string")
+    return cls(**values)
+
+
+def _changed_options(options) -> dict:
+    """The options that differ from their default, for writing back to TOML."""
+    defaults = type(options)()
+    return {k: v for k, v in vars(options).items() if v != getattr(defaults, k)}
 
 
 def from_dict(data: dict, base_dir: Path) -> AppSpec:
     app = data.get("app", {})
     deps = data.get("deps", {})
     output = data.get("output", {})
-    known = {"app", "linux", "windows", "files", "build", "deps", "output"}
+    known = {"app", "linux", "windows", "files", "build", "deps", "flatpak", "snap", "output"}
     unknown = set(data) - known
     if unknown:
         raise ConfigError(f"unknown section(s): {', '.join(sorted(unknown))}")
@@ -252,6 +330,8 @@ def from_dict(data: dict, base_dir: Path) -> AppSpec:
         deps_auto=bool(deps.get("auto", True)),
         deps_deb=_str_list(deps, "deb", "deps"),
         deps_rpm=_str_list(deps, "rpm", "deps"),
+        flatpak=_options(FlatpakOptions, data.get("flatpak", {}), "flatpak"),
+        snap=_options(SnapOptions, data.get("snap", {}), "snap"),
         formats=_str_list(output, "formats", "output") or ["deb", "rpm"],
         output_dir=_path(base_dir, output.get("dir") or "dist"),
         base_dir=base_dir,
@@ -306,7 +386,12 @@ def _target_table(target: Target, base_dir: Path) -> dict:
         "command": target.command,
         "binary": _rel(target.binary, base_dir), "dir": _rel(target.dir, base_dir),
         "exec": target.exec if target.dir else "", "icon": _rel(target.icon, base_dir),
+        "man": [_rel(page, base_dir) for page in target.man],
     }
+
+
+# Sections holding per-format options, written only when they differ from the defaults.
+OPTION_SECTIONS = ("flatpak", "snap")
 
 
 def to_toml(spec: AppSpec, base_dir: Path) -> str:
@@ -324,11 +409,16 @@ def to_toml(spec: AppSpec, base_dir: Path) -> str:
             sections.append((platform, _target_table(target, base_dir)))
     sections += [
         ("deps", {"auto": spec.deps_auto, "deb": spec.deps_deb, "rpm": spec.deps_rpm}),
+        ("flatpak", _changed_options(spec.flatpak)),
+        ("snap", _changed_options(spec.snap)),
         ("output", {"formats": spec.formats, "dir": _rel(spec.output_dir, base_dir)}),
     ]
     lines = ["# Generated by PackagingOnLinux. Paths are relative to this file."]
     for name, table in sections:
-        entries = {k: v for k, v in table.items() if v not in ("", [], None) or isinstance(v, bool)}
+        if name in OPTION_SECTIONS:  # already only the non-default values, which may be empty
+            entries = table
+        else:
+            entries = {k: v for k, v in table.items() if v not in ("", [], None) or isinstance(v, bool)}
         if name == "deps" and entries == {"auto": True}:
             continue
         if not entries and name not in PLATFORMS:  # an empty [windows] still means "build for it"

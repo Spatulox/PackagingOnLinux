@@ -35,6 +35,31 @@ def test_roundtrip_keeps_everything(hello_spec, hello_project):
     assert "[files]" not in text and "[build]" not in text
 
 
+def test_flatpak_options_roundtrip(hello_spec, hello_project):
+    config.save(hello_spec, hello_project)
+    assert "[flatpak]" not in hello_project.read_text()  # defaults are not written
+    hello_spec.flatpak.runtime_version = "25.08"
+    hello_spec.flatpak.finish_args = []
+    config.save(hello_spec, hello_project)
+    assert '[flatpak]\nruntime_version = "25.08"\nfinish_args = []\n' in hello_project.read_text()
+    assert config.load(hello_project).flatpak == hello_spec.flatpak
+
+
+def test_snap_options_roundtrip(hello_spec, hello_project):
+    hello_spec.snap.confinement = "classic"
+    hello_spec.snap.extensions = ["gnome"]
+    config.save(hello_spec, hello_project)
+    text = hello_project.read_text()
+    assert '[snap]\nconfinement = "classic"\nextensions = ["gnome"]\n' in text
+    assert config.load(hello_project).snap == hello_spec.snap
+
+
+def test_flatpak_unknown_key_rejected(hello_project):
+    hello_project.write_text(hello_project.read_text() + '\n[flatpak]\nruntimeversion = "25.08"\n')
+    with pytest.raises(config.ConfigError, match="runtimeversion"):
+        config.load(hello_project)
+
+
 def test_old_files_and_build_sections_are_read_as_linux(tmp_path):
     spec = config.from_dict({
         "app": {"id": "org.example.Old", "name": "Old", "version": "1", "summary": "s"},
@@ -119,3 +144,36 @@ def test_set_version_without_version_line_writes_nothing(tmp_path):
     with pytest.raises(ConfigError):
         config.set_version(path, "1.0.1")
     assert path.read_text() == "[app]\nid = \"org.example.Hello\"\n"
+
+
+def test_man_pages_roundtrip(hello_spec, hello_project):
+    base = hello_project.parent
+    (base / "docs").mkdir()
+    for name in ("hello.1", "hello.conf.5"):
+        (base / "docs" / name).write_text(".TH HELLO 1\n")
+    hello_spec.linux.man = [base / "docs/hello.1", base / "docs/hello.conf.5"]
+    config.save(hello_spec, hello_project)
+    assert 'man = ["docs/hello.1", "docs/hello.conf.5"]' in hello_project.read_text()
+    again = config.load(hello_project)
+    assert again.linux.man == hello_spec.linux.man
+    assert again.validate() == []
+
+
+@pytest.mark.parametrize("name, section", [
+    ("hello.1", "1"), ("hello.conf.5", "5"), ("Hello.3pm", "3"), ("hello.8.gz", "8"),
+    ("hello", None), ("hello.md", None), ("hello.0", None), ("hello.1.txt", None),
+])
+def test_man_section(name, section):
+    assert config.man_section(Path(name)) == section
+
+
+def test_man_page_problems(hello_spec, tmp_path):
+    (tmp_path / "README.md").write_text("x")
+    hello_spec.linux.man = [tmp_path / "missing.1", tmp_path / "README.md"]
+    problems = hello_spec.validate()
+    assert any("man page not found" in p and "missing.1" in p for p in problems)
+    assert any("'README.md' must end with its section" in p for p in problems)
+    hello_spec.linux.man = []
+    hello_spec.windows = config.Target(binary=tmp_path / "a.exe", man=[tmp_path / "hello.1"])
+    assert any("[windows] man pages are only installed by Linux formats" in p
+               for p in hello_spec.validate(check_files=False))

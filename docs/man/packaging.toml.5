@@ -1,0 +1,285 @@
+.\" Written by hand. Check it with: groff -man -Tutf8 -ww -z docs/man/packaging.toml.5
+.TH PACKAGING.TOML 5 "" "PackagingOnLinux" "File Formats"
+.SH NAME
+packaging.toml \- description of an application to package with PackagingOnLinux
+.SH SYNOPSIS
+.I packaging.toml
+.SH DESCRIPTION
+A TOML file that describes one application: its metadata, the prebuilt files to package
+for each platform, and the formats to build.
+It is read by
+.BR packagingonlinux (1)
+(\fBcheck\fR, \fBbuild\fR, \fBgui\fR) and written by \fBpackagingonlinux init\fR and by the
+graphical interface, so a project set up in the GUI builds the same packages in CI.
+.PP
+Relative paths are resolved against the directory that contains the file, not the current
+directory.
+A list of strings can also be written as one comma\-separated string.
+Unknown sections are an error.
+.PP
+The graphical interface rewrites the whole file when it saves: comments are lost, and keys
+equal to their default are left out.
+.SH "[app] SECTION"
+The application metadata, shared by every format.
+.TP
+\fBid\fR (string, required)
+Reverse\-DNS application id, at least three dot\-separated parts, e.g.
+\fBio.github.you.MyApp\fR.
+It names the .desktop file, the icon and the AppStream metainfo, and is the Flatpak app id.
+.TP
+\fBname\fR (string, required)
+Display name, e.g. \fBMyApp\fR.
+The package name used by deb and rpm is derived from it: lowercase, with runs of
+characters other than a\-z, 0\-9, +, . and \- replaced by \-.
+.TP
+\fBversion\fR (string, required)
+Starts with a digit and contains only letters, digits, ., + and ~ (no \- and no spaces),
+e.g. \fB1.2.0\fR or \fB1.2.0~rc1\fR.
+.TP
+\fBsummary\fR (string, required)
+One\-line description: the .desktop Comment, the package summary, the AppStream summary.
+.TP
+\fBdescription\fR (string)
+Long description; blank lines separate paragraphs.
+Default: the summary.
+.TP
+\fBlicense\fR (string)
+SPDX license expression, e.g. \fBMIT\fR or \fBGPL\-3.0\-only\fR.
+Default: \fBLicenseRef\-proprietary\fR.
+.TP
+\fBmaintainer\fR (string)
+\fBName <email>\fR.
+.TP
+\fBhomepage\fR (string)
+Project URL.
+.TP
+\fBcategories\fR (list of strings)
+freedesktop menu categories, e.g. \fB["Development", "IDE"]\fR.
+The main ones are AudioVideo, Audio, Video, Development, Education, Game, Graphics,
+Network, Office, Science, Settings, System and Utility.
+The first one also picks the deb Section.
+Default: \fB["Utility"]\fR.
+.SH "[linux] SECTION"
+What to package for the Linux formats.
+Needed to build them; leave it out to build only Windows formats.
+Set exactly one of \fBbinary\fR or \fBdir\fR.
+.TP
+\fBbinary\fR (path)
+A single executable, installed as \fI/usr/bin/<name>\fR.
+.TP
+\fBdir\fR (path)
+An install folder, copied to \fI/usr/lib/<package>/\fR, with \fI/usr/bin/<exec name>\fR a
+symlink to its executable.
+.TP
+\fBexec\fR (string, required with \fBdir\fR)
+Path of the executable inside \fBdir\fR, e.g. \fBbin/myapp\fR.
+.TP
+\fBicon\fR (path)
+A PNG or SVG file.
+A square PNG of 16, 22, 24, 32, 48, 64, 96, 128, 256 or 512 pixels, or an SVG, goes to the
+hicolor icon theme; any other PNG goes to \fI/usr/share/pixmaps\fR with a warning, which
+Flatpak does not accept.
+Without an icon, menus show a generic one.
+.TP
+\fBcommand\fR (string)
+Shell command run before packaging, see \fBBUILD COMMANDS\fR.
+.TP
+\fBman\fR (list of paths)
+Man pages, installed gzipped into \fI/usr/share/man/man<N>/\fR.
+The file name ends with the section, which picks \fIN\fR: \fBmyapp.1\fR,
+\fBmyapp.conf.5\fR, \fBfoo.3pm\fR, or an already compressed \fBmyapp.1.gz\fR.
+Debian policy wants a man page for every command in \fI/usr/bin\fR.
+Only the deb, rpm and tar.gz packages make them available to
+.BR man (1).
+.PP
+The architecture is read from the executable's ELF header; a script is packaged as
+architecture\-independent (deb \fBall\fR, rpm \fBnoarch\fR).
+.SH "[windows] SECTION"
+What to package for the Windows formats (\fBzip\fR, \fBnsis\fR): the same keys as
+\fB[linux]\fR except \fBman\fR, with a Windows executable (\fI.exe\fR).
+The architecture (x86, x64, arm64) is read from its PE header.
+An empty \fB[windows]\fR section still means "build for Windows".
+.TP
+\fBicon\fR (path)
+An \fI.ico\fR file, or a square PNG of at most 256 pixels.
+Default: the \fB[linux]\fR icon, when it can be converted.
+.SH "[deps] SECTION"
+Dependencies of the Linux packages (optional).
+.TP
+\fBauto\fR (boolean)
+Detect the shared libraries the executable needs: \fBdpkg\-shlibdeps\fR (or ldd and
+\fBdpkg \-S\fR) for deb, rpmbuild's automatic requirements for rpm.
+Set it to \fBfalse\fR for a script or an app that bundles its libraries.
+Default: \fBtrue\fR.
+.TP
+\fBdeb\fR (list of strings)
+Extra deb dependencies, in Debian syntax, e.g. \fB["python3 (>= 3.11)", "libgtk\-3\-0"]\fR.
+.TP
+\fBrpm\fR (list of strings)
+Extra rpm requirements, e.g. \fB["python3 >= 3.11", "gtk3"]\fR.
+.SH "[flatpak] SECTION"
+Options of the \fBflatpak\fR format (optional).
+An unknown key is an error.
+.TP
+\fBruntime\fR (string)
+The runtime the app runs on, installed from Flathub on first use.
+Default: \fBorg.freedesktop.Platform\fR.
+.TP
+\fBruntime_version\fR (string)
+Default: \fB26.08\fR.
+.TP
+\fBsdk\fR (string)
+Default: the runtime's SDK (\fBorg.freedesktop.Platform\fR \-> \fBorg.freedesktop.Sdk\fR).
+.TP
+\fBfinish_args\fR (list of strings)
+The sandbox permissions, as
+.BR flatpak\-build\-finish (1)
+options.
+Default: \fB["\-\-share=ipc", "\-\-socket=wayland", "\-\-socket=fallback\-x11",
+"\-\-device=dri"]\fR: the display, the GPU and IPC, but not the user's files (add e.g.
+\fB"\-\-filesystem=home"\fR) nor the network (\fB"\-\-share=network"\fR).
+.SH "[snap] SECTION"
+Options of the \fBsnap\fR format (optional).
+An unknown key is an error.
+.TP
+\fBbase\fR (string)
+The base snap the app runs on.
+Building on the host (\fBSNAPCRAFT_BUILD_ENVIRONMENT=host\fR) needs the matching Ubuntu
+release (24.04 for \fBcore24\fR).
+Default: \fBcore24\fR.
+.TP
+\fBconfinement\fR (string)
+\fBstrict\fR (only the \fBplugs\fR below), \fBclassic\fR (the same access as a deb; the
+Snap Store accepts it only after a manual review) or \fBdevmode\fR.
+Default: \fBstrict\fR.
+.TP
+\fBgrade\fR (string)
+\fBstable\fR or \fBdevel\fR.
+Default: empty, meaning \fBdevel\fR when the version contains a \fB~\fR (a pre\-release),
+\fBstable\fR otherwise.
+.TP
+\fBplugs\fR (list of strings)
+The interfaces a strict snap connects to (ignored for a classic snap).
+Default: \fB["desktop", "desktop\-legacy", "wayland", "x11", "opengl", "home",
+"network"]\fR.
+.TP
+\fBextensions\fR (list of strings)
+snapcraft extensions, e.g. \fB["gnome"]\fR for a GTK app or \fB["kde\-neon\-6"]\fR for
+a Qt 6 app.
+Default: none.
+.TP
+\fBstage_packages\fR (list of strings)
+Ubuntu packages to bundle in the snap, for libraries the base does not have.
+Default: none.
+.SH "[output] SECTION"
+.TP
+\fBformats\fR (list of strings)
+Formats built when \fBpackagingonlinux build\fR has no \fB\-f\fR option.
+The list of formats, with the tools each one needs, is in
+.BR packagingonlinux (1)
+and \fBpackagingonlinux \-\-help\fR.
+Default: \fB["deb", "rpm"]\fR.
+.TP
+\fBdir\fR (path)
+Where the packages are written (overridden by \fB\-o\fR).
+Default: \fBdist\fR.
+.SH "BUILD COMMANDS"
+The \fBcommand\fR of \fB[linux]\fR or \fB[windows]\fR runs with
+.BR sh (1)
+in the config's directory before that platform is packaged, and only when a format of that
+platform is built: \fB\-f deb\fR never runs the Windows command.
+It typically compiles the app or assembles its \fBdir\fR.
+If it fails, that platform's formats fail and the others are still built.
+It receives these environment variables, on top of the caller's:
+.TP
+.B APP_ID
+The \fB[app]\fR id.
+.TP
+.B APP_NAME
+The \fB[app]\fR name.
+.TP
+.B APP_VERSION
+The \fB[app]\fR version, e.g. to stamp it into the binary.
+.TP
+.B APP_PLATFORM
+\fBlinux\fR or \fBwindows\fR.
+.SH "INSTALLED FILES"
+Every Linux format installs the same tree, built from freedesktop standards only, so the
+app shows in the menus of any desktop environment:
+.PP
+.nf
+.RS
+/usr/bin/<exec name>
+/usr/lib/<package>/                         (with \fBdir\fR)
+/usr/share/applications/<id>.desktop
+/usr/share/icons/hicolor/<size>/apps/<id>.png|.svg
+/usr/share/metainfo/<id>.metainfo.xml
+/usr/share/man/man<N>/<page>.gz              (with \fBman\fR)
+.RE
+.fi
+.SH "OLD LAYOUT"
+Configs written before the \fB[linux]\fR section existed, with \fB[files]\fR (binary, dir,
+exec, icon) and \fB[build]\fR (command), are still read as \fB[linux]\fR.
+Using both layouts in one file is an error.
+.SH EXAMPLES
+A single Linux binary built by \fBmake\fR:
+.PP
+.nf
+.RS
+[app]
+id = "io.github.you.MyApp"
+name = "MyApp"
+version = "1.0.0"
+summary = "Does one thing well"
+license = "MIT"
+maintainer = "You <you@example.org>"
+categories = ["Utility"]
+
+[linux]
+command = "make"
+binary = "build/myapp"
+icon = "icons/myapp.svg"
+man = ["docs/myapp.1"]
+
+[output]
+formats = ["deb", "rpm", "tarball", "appimage"]
+.RE
+.fi
+.PP
+An install folder for Linux and a Windows build cross\-compiled with Go:
+.PP
+.nf
+.RS
+[app]
+id = "io.github.you.MyApp"
+name = "MyApp"
+version = "2.1.0"
+summary = "Does one thing well"
+
+[linux]
+command = "make install DESTDIR=build/linux"
+dir = "build/linux/opt/myapp"
+exec = "bin/myapp"
+icon = "icons/myapp.png"
+
+[windows]
+command = "GOOS=windows GOARCH=amd64 go build \-o build/myapp.exe"
+binary = "build/myapp.exe"
+
+[deps]
+deb = ["libgtk\-3\-0"]
+rpm = ["gtk3"]
+
+[output]
+formats = ["deb", "rpm", "zip", "nsis"]
+dir = "dist"
+.RE
+.fi
+.SH "SEE ALSO"
+.BR packagingonlinux (1),
+.UR https://specifications.freedesktop.org/menu\-spec/latest/
+freedesktop menu categories
+.UE ,
+.UR https://spdx.org/licenses/
+SPDX license list
+.UE
