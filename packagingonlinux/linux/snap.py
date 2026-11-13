@@ -119,6 +119,9 @@ class SnapBackend(Backend):
         data = snapcraft_yaml(spec)
         (project / "snapcraft.yaml").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         arch = next(iter(data["platforms"]))
-        out = ctx.outdir / f"{spec.package_name}_{spec.version}_{arch}.snap"
-        run(["snapcraft", "pack", "--output", str(out)], ctx.log, cwd=project)
+        filename = f"{spec.package_name}_{spec.version}_{arch}.snap"
+        # snapcraft refuses to write the snap outside the project tree
+        run(["snapcraft", "pack", "--output", filename], ctx.log, cwd=project)
+        out = ctx.outdir / filename
+        shutil.move(project / filename, out)
         return [out]
