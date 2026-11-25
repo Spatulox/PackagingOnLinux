@@ -91,13 +91,42 @@ The file name ends with the section, which picks \fIN\fR: \fBmyapp.1\fR,
 Debian policy wants a man page for every command in \fI/usr/bin\fR.
 Only the deb, rpm and tar.gz packages make them available to
 .BR man (1).
+.TP
+\fBwm_class\fR (string)
+The WM_CLASS (X11) or app_id (Wayland) of the app's windows, written as
+\fBStartupWMClass\fR in the \fI.desktop\fR file.
+Desktops match a window to its launcher by the \fI.desktop\fR file name, which is the
+app \fBid\fR, or by this key: without it, a window that announces another name gets a
+generic dock icon.
+GTK, Wails and Qt apps usually announce the program name, Electron apps the \fBname\fR of
+their \fIpackage.json\fR.
+Find it with \fBxprop WM_CLASS\fR (the second value) on X11.
+Leave it out when it already is the app \fBid\fR.
+.TP
+\fBautostart\fR (boolean)
+Start the app when a user signs in, through an XDG autostart entry,
+\fI/etc/xdg/autostart/<id>.desktop\fR, that every desktop environment reads.
+It is installed by the deb, rpm and tar.gz packages, as a configuration file, and is on
+for every user, who can turn it off in the desktop's startup applications settings.
+AppImage, Flatpak and Snap install nothing system\-wide and ignore it, with a warning:
+the app must set it up itself (Background portal, or a file in \fI~/.config/autostart\fR).
+Default: \fBfalse\fR.
+.TP
+\fBautostart_args\fR (list of strings)
+Arguments given to the app when it is started at sign\-in, e.g. \fB["\-\-minimized"]\fR.
+Needs \fBautostart = true\fR.
 .PP
 The architecture is read from the executable's ELF header; a script is packaged as
 architecture\-independent (deb \fBall\fR, rpm \fBnoarch\fR).
 .SH "[windows] SECTION"
 What to package for the Windows formats (\fBzip\fR, \fBnsis\fR): the same keys as
-\fB[linux]\fR except \fBman\fR, with a Windows executable (\fI.exe\fR).
+\fB[linux]\fR except \fBman\fR and \fBwm_class\fR, with a Windows executable (\fI.exe\fR).
 The architecture (x86, x64, arm64) is read from its PE header.
+With \fBautostart\fR, the installer shows a "Start when I sign in" check box, checked by
+default (and on in a silent install, \fB/S\fR), which registers the app with its
+\fBautostart_args\fR under the user's
+\fIHKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\fR key; the uninstaller removes
+it. The \fBzip\fR ignores \fBautostart\fR.
 An empty \fB[windows]\fR section still means "build for Windows".
 .TP
 \fBicon\fR (path)
@@ -117,6 +146,19 @@ Extra deb dependencies, in Debian syntax, e.g. \fB["python3 (>= 3.11)", "libgtk\
 .TP
 \fBrpm\fR (list of strings)
 Extra rpm requirements, e.g. \fB["python3 >= 3.11", "gtk3"]\fR.
+.TP
+\fBdeb_recommends\fR, \fBdeb_suggests\fR (lists of strings)
+Weak deb dependencies: the \fBRecommends\fR field, installed by default but not required,
+and the \fBSuggests\fR field, only listed.
+Debian syntax, with alternatives separated by \fB|\fR, e.g.
+\fB["gnome\-keyring | kwalletmanager | keepassxc"]\fR.
+.TP
+\fBrpm_recommends\fR, \fBrpm_suggests\fR (lists of strings)
+Weak rpm dependencies (\fBRecommends:\fR and \fBSuggests:\fR, RPM 4.12 or later).
+RPM has no \fBa | b\fR alternatives: write a rich dependency instead, e.g.
+\fB["(gnome\-keyring or kwalletmanager)"]\fR.
+.PP
+The other formats ignore \fB[deps]\fR.
 .SH "[flatpak] SECTION"
 Options of the \fBflatpak\fR format (optional).
 An unknown key is an error.
@@ -215,6 +257,7 @@ app shows in the menus of any desktop environment:
 /usr/share/icons/hicolor/<size>/apps/<id>.png|.svg
 /usr/share/metainfo/<id>.metainfo.xml
 /usr/share/man/man<N>/<page>.gz              (with \fBman\fR)
+/etc/xdg/autostart/<id>.desktop              (with \fBautostart\fR; deb, rpm, tar.gz)
 .RE
 .fi
 .SH "OLD LAYOUT"
@@ -261,14 +304,20 @@ command = "make install DESTDIR=build/linux"
 dir = "build/linux/opt/myapp"
 exec = "bin/myapp"
 icon = "icons/myapp.png"
+autostart = true
+autostart_args = ["\-\-minimized"]
 
 [windows]
 command = "GOOS=windows GOARCH=amd64 go build \-o build/myapp.exe"
 binary = "build/myapp.exe"
+autostart = true
+autostart_args = ["/minimized"]
 
 [deps]
 deb = ["libgtk\-3\-0"]
 rpm = ["gtk3"]
+deb_suggests = ["gnome\-keyring | kwalletmanager"]
+rpm_suggests = ["(gnome\-keyring or kwalletmanager)"]
 
 [output]
 formats = ["deb", "rpm", "zip", "nsis"]

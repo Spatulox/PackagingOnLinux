@@ -5,9 +5,11 @@ it are resolved against the directory that contains the file.
 
 Schema:
     [app]     id, name, version, summary, description, license, maintainer, homepage, categories
-    [linux]   command, binary | dir (+ exec), icon, man
-    [windows] command, binary | dir (+ exec), icon      (optional, same keys but man)
-    [deps]    auto, deb, rpm        (optional, Linux only)
+    [linux]   command, binary | dir (+ exec), icon, man, wm_class, autostart, autostart_args
+    [windows] command, binary | dir (+ exec), icon, autostart, autostart_args
+              (optional, same keys but man and wm_class)
+    [deps]    auto, deb, rpm, deb_recommends, deb_suggests, rpm_recommends, rpm_suggests
+              (optional, Linux only)
     [flatpak] runtime, runtime_version, sdk, finish_args      (optional)
     [snap]    base, confinement, grade, plugs, extensions, stage_packages   (optional)
     [output]  formats, dir
@@ -54,7 +56,8 @@ class ConfigError(ValueError):
 @dataclass
 class Target:
     """What to package for one platform: a single executable or a directory, plus an icon,
-    man pages (Linux only), and the optional command that produces them."""
+    man pages and the window class (Linux only), whether to start the app when the user
+    signs in, and the optional command that produces them."""
 
     binary: Path | None = None
     dir: Path | None = None
@@ -62,6 +65,11 @@ class Target:
     icon: Path | None = None
     command: str = ""
     man: list[Path] = field(default_factory=list)
+    # WM_CLASS (X11) / app_id (Wayland) of the app's windows, when it is not the app id.
+    wm_class: str = ""
+    # Start the app (with these arguments) when the user signs in.
+    autostart: bool = False
+    autostart_args: list[str] = field(default_factory=list)
 
     @property
     def exec_name(self) -> str:
@@ -95,6 +103,14 @@ class Target:
                 problems.append(f"icon not found: {self.icon}")
         if self.man and section != "linux":
             problems.append(f"[{section}] man pages are only installed by Linux formats: move 'man' to [linux]")
+        if self.wm_class and section != "linux":
+            problems.append(f"[{section}] wm_class is only used by Linux formats: move it to [linux]")
+        if any(c in self.wm_class for c in "\n\r"):
+            problems.append(f"[{section}] wm_class must be a single line")
+        if self.autostart_args and not self.autostart:
+            problems.append(f"[{section}] autostart_args is only used with autostart = true")
+        if any(c in arg for arg in self.autostart_args for c in "\n\r"):
+            problems.append(f"[{section}] each autostart_args argument must be a single line")
         for page in self.man:
             if man_section(page) is None:
                 problems.append(f"man page {page.name!r} must end with its section, e.g. myapp.1 or myapp.1.gz")
@@ -159,6 +175,11 @@ class AppSpec:
     deps_auto: bool = True
     deps_deb: list[str] = field(default_factory=list)
     deps_rpm: list[str] = field(default_factory=list)
+    # Weak dependencies, installed by default (recommends) or only listed (suggests).
+    deps_deb_recommends: list[str] = field(default_factory=list)
+    deps_deb_suggests: list[str] = field(default_factory=list)
+    deps_rpm_recommends: list[str] = field(default_factory=list)
+    deps_rpm_suggests: list[str] = field(default_factory=list)
     flatpak: FlatpakOptions = field(default_factory=FlatpakOptions)
     snap: SnapOptions = field(default_factory=SnapOptions)
     formats: list[str] = field(default_factory=lambda: ["deb", "rpm"])
@@ -230,7 +251,19 @@ class AppSpec:
         target = self.target(platform)
         if target is None:
             return [f"no [{platform}] section in the config: it is needed to build {platform} formats"]
-        return target.validate(platform, check_files)
+        problems = target.validate(platform, check_files)
+        if platform == "linux":
+            problems += self.deps_problems()
+        return problems
+
+    def deps_problems(self) -> list[str]:
+        problems = []
+        for key in ("rpm", "rpm_recommends", "rpm_suggests"):
+            for dep in getattr(self, f"deps_{key}"):
+                if "|" in dep:
+                    problems.append(f"[deps] {key}: {dep!r}: rpm has no 'a | b' alternatives, "
+                                    "write a rich dependency instead, e.g. '(a or b)'")
+        return problems
 
 
 def suggest_id(name: str, maintainer: str = "") -> str:
@@ -269,7 +302,17 @@ def _target(base_dir: Path, table: dict, where: str) -> Target:
         icon=_path(base_dir, table.get("icon")),
         command=str(table.get("command", "")),
         man=[_path(base_dir, page) for page in _str_list(table, "man", where)],
+        wm_class=str(table.get("wm_class", "")).strip(),
+        autostart=_bool(table, "autostart", where),
+        autostart_args=_str_list(table, "autostart_args", where),
     )
+
+
+def _bool(table: dict, key: str, where: str, default: bool = False) -> bool:
+    value = table.get(key, default)
+    if not isinstance(value, bool):
+        raise ConfigError(f"[{where}] {key} must be true or false")
+    return value
 
 
 def _options(cls, table: object, where: str):
@@ -330,6 +373,10 @@ def from_dict(data: dict, base_dir: Path) -> AppSpec:
         deps_auto=bool(deps.get("auto", True)),
         deps_deb=_str_list(deps, "deb", "deps"),
         deps_rpm=_str_list(deps, "rpm", "deps"),
+        deps_deb_recommends=_str_list(deps, "deb_recommends", "deps"),
+        deps_deb_suggests=_str_list(deps, "deb_suggests", "deps"),
+        deps_rpm_recommends=_str_list(deps, "rpm_recommends", "deps"),
+        deps_rpm_suggests=_str_list(deps, "rpm_suggests", "deps"),
         flatpak=_options(FlatpakOptions, data.get("flatpak", {}), "flatpak"),
         snap=_options(SnapOptions, data.get("snap", {}), "snap"),
         formats=_str_list(output, "formats", "output") or ["deb", "rpm"],
@@ -387,6 +434,9 @@ def _target_table(target: Target, base_dir: Path) -> dict:
         "binary": _rel(target.binary, base_dir), "dir": _rel(target.dir, base_dir),
         "exec": target.exec if target.dir else "", "icon": _rel(target.icon, base_dir),
         "man": [_rel(page, base_dir) for page in target.man],
+        "wm_class": target.wm_class,
+        "autostart": target.autostart or None,  # written only when true
+        "autostart_args": target.autostart_args,
     }
 
 
@@ -408,7 +458,11 @@ def to_toml(spec: AppSpec, base_dir: Path) -> str:
         if target is not None:
             sections.append((platform, _target_table(target, base_dir)))
     sections += [
-        ("deps", {"auto": spec.deps_auto, "deb": spec.deps_deb, "rpm": spec.deps_rpm}),
+        ("deps", {
+            "auto": spec.deps_auto, "deb": spec.deps_deb, "rpm": spec.deps_rpm,
+            "deb_recommends": spec.deps_deb_recommends, "deb_suggests": spec.deps_deb_suggests,
+            "rpm_recommends": spec.deps_rpm_recommends, "rpm_suggests": spec.deps_rpm_suggests,
+        }),
         ("flatpak", _changed_options(spec.flatpak)),
         ("snap", _changed_options(spec.snap)),
         ("output", {"formats": spec.formats, "dir": _rel(spec.output_dir, base_dir)}),

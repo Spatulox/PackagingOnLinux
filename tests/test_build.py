@@ -27,6 +27,7 @@ def test_stage_layout(hello_spec, tmp_path):
     ]
     desktop = (root / "usr/share/applications/org.example.Hello.desktop").read_text()
     assert "Exec=hello\n" in desktop and "Icon=org.example.Hello\n" in desktop
+    assert "StartupWMClass" not in desktop
     assert (root / "usr/bin/hello").stat().st_mode & 0o777 == 0o755
 
 
@@ -66,11 +67,57 @@ def test_directory_app_uses_symlink(hello_spec, tmp_path):
     assert (root / "usr/lib/hello/data.txt").exists()
 
 
+@pytest.mark.parametrize("args, line", [
+    ([], "hello"),
+    (["--minimized"], "hello --minimized"),
+    (["--name", "My App"], 'hello --name "My App"'),
+    (['say "hi"', "$HOME", "`x`"], 'hello "say \\\\"hi\\\\"" "\\\\$HOME" "\\\\`x\\\\`"'),
+    (["C:\\dir", "50%"], 'hello "C:\\\\\\\\dir" 50%%'),
+    ([""], 'hello ""'),
+])
+def test_exec_line_quoting(args, line):
+    assert staging.exec_line("hello", args) == line
+
+
+def test_autostart_entry(hello_spec, tmp_path):
+    staging.build_stage(hello_spec, tmp_path / "plain")
+    assert not (tmp_path / "plain/etc").exists()
+    hello_spec.linux.autostart = True
+    hello_spec.linux.autostart_args = ["--minimized"]
+    root = tmp_path / "stage"
+    staging.build_stage(hello_spec, root)
+    entry = (root / "etc/xdg/autostart/org.example.Hello.desktop").read_text()
+    assert "Exec=hello --minimized\n" in entry and "Icon=org.example.Hello\n" in entry
+    assert "Categories" not in entry
+    menu = (root / "usr/share/applications/org.example.Hello.desktop").read_text()
+    assert "Exec=hello\n" in menu and "Categories=Utility;\n" in menu
+
+
+def test_rpm_spec_marks_autostart_as_config(hello_spec, tmp_path):
+    hello_spec.linux.autostart = True
+    stage = tmp_path / "stage"
+    staging.build_stage(hello_spec, stage)
+    text = spec_file(BuildContext(hello_spec, stage, tmp_path, tmp_path, print))
+    assert "\n%config(noreplace) /etc/xdg/autostart/org.example.Hello.desktop\n" in text
+    assert "\n/usr/bin/hello\n" in text
+
+
+def test_wm_class_goes_to_desktop_file(hello_spec, tmp_path):
+    hello_spec.linux.wm_class = "Hello"
+    staging.build_stage(hello_spec, tmp_path)
+    desktop = (tmp_path / "usr/share/applications/org.example.Hello.desktop").read_text()
+    assert "StartupWMClass=Hello\n" in desktop
+
+
 @pytest.mark.skipif(not shutil.which("desktop-file-validate"), reason="desktop-file-utils missing")
 def test_desktop_file_is_valid(hello_spec, tmp_path):
+    hello_spec.linux.wm_class = "Hello"
+    hello_spec.linux.autostart = True
+    hello_spec.linux.autostart_args = ["--name", 'My "App"', "$HOME"]
     staging.build_stage(hello_spec, tmp_path)
     subprocess.run(["desktop-file-validate",
-                    str(tmp_path / "usr/share/applications/org.example.Hello.desktop")], check=True)
+                    str(tmp_path / "usr/share/applications/org.example.Hello.desktop"),
+                    str(tmp_path / "etc/xdg/autostart/org.example.Hello.desktop")], check=True)
 
 
 def test_rpm_spec_lists_files(hello_spec, tmp_path):
@@ -79,6 +126,18 @@ def test_rpm_spec_lists_files(hello_spec, tmp_path):
     text = spec_file(BuildContext(hello_spec, stage, tmp_path, tmp_path, print))
     assert "Name: hello\n" in text and "BuildArch: noarch\n" in text
     assert "\n/usr/bin/hello\n" in text
+    assert "Recommends" not in text and "Suggests" not in text
+
+
+def test_rpm_spec_weak_deps(hello_spec, tmp_path):
+    hello_spec.deps_rpm = ["python3"]
+    hello_spec.deps_rpm_recommends = ["libsecret"]
+    hello_spec.deps_rpm_suggests = ["(gnome-keyring or kwalletmanager)", "keepassxc"]
+    stage = tmp_path / "stage"
+    staging.build_stage(hello_spec, stage)
+    text = spec_file(BuildContext(hello_spec, stage, tmp_path, tmp_path, print))
+    assert ("Requires: python3\nRecommends: libsecret\n"
+            "Suggests: (gnome-keyring or kwalletmanager)\nSuggests: keepassxc\n") in text
 
 
 def test_rpm_moved_across_filesystems(hello_spec, tmp_path, monkeypatch):
@@ -114,10 +173,36 @@ def test_build_deb_and_tarball(hello_spec):
     assert deb.name == "hello_1.2.3_all.deb"
     info = subprocess.run(["dpkg-deb", "-f", str(deb)], capture_output=True, text=True, check=True).stdout
     assert "Package: hello" in info and "Maintainer: Test <test@example.org>" in info
+    assert "Recommends" not in info and "Suggests" not in info
     contents = subprocess.run(["dpkg-deb", "-c", str(deb)], capture_output=True, text=True, check=True).stdout
     assert "root/root" in contents and "./usr/bin/hello" in contents
     with tarfile.open(result.packages["tarball"][0]) as tar:
         assert "usr/bin/hello" in tar.getnames()
+
+
+@pytest.mark.skipif(not shutil.which("dpkg-deb"), reason="dpkg-deb missing")
+def test_build_deb_weak_deps(hello_spec):
+    hello_spec.deps_deb_recommends = ["libsecret-1-0"]
+    hello_spec.deps_deb_suggests = ["gnome-keyring | kwalletmanager | keepassxc", "seahorse"]
+    result = core.build(hello_spec, ["deb"], log=lambda _: None)
+    assert result.ok, result.errors
+    info = subprocess.run(["dpkg-deb", "-f", str(result.packages["deb"][0])],
+                          capture_output=True, text=True, check=True).stdout
+    assert "Recommends: libsecret-1-0\n" in info
+    assert "Suggests: gnome-keyring | kwalletmanager | keepassxc, seahorse\n" in info
+
+
+@pytest.mark.skipif(not shutil.which("dpkg-deb"), reason="dpkg-deb missing")
+def test_build_deb_autostart_is_a_conffile(hello_spec):
+    hello_spec.linux.autostart = True
+    result = core.build(hello_spec, ["deb"], log=lambda _: None)
+    assert result.ok, result.errors
+    deb = str(result.packages["deb"][0])
+    conffiles = subprocess.run(["dpkg-deb", "-I", deb, "conffiles"], capture_output=True, text=True,
+                               check=True).stdout
+    assert conffiles == "/etc/xdg/autostart/org.example.Hello.desktop\n"
+    contents = subprocess.run(["dpkg-deb", "-c", deb], capture_output=True, text=True, check=True).stdout
+    assert "./etc/xdg/autostart/org.example.Hello.desktop" in contents
 
 
 @pytest.mark.skipif(not shutil.which("dpkg-deb"), reason="dpkg-deb missing")

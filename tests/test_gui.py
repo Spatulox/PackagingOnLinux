@@ -72,11 +72,41 @@ def test_open_fills_form(window, hello_spec):
 def test_form_save_roundtrip(window, hello_project, hello_spec):
     window.form.summary.setText("Changed summary")
     window.form.deps_deb.setText("libfoo1, libbar2")
+    window.form.deps_deb_suggests.setText("gnome-keyring | kwalletmanager, seahorse")
+    window.form.deps_rpm_recommends.setText("(gnome-keyring or kwalletmanager)")
     assert window.save()
     again = config.load(hello_project)
     assert again.summary == "Changed summary"
     assert again.deps_deb == ["libfoo1", "libbar2"]
+    assert again.deps_deb_suggests == ["gnome-keyring | kwalletmanager", "seahorse"]
+    assert again.deps_rpm_recommends == ["(gnome-keyring or kwalletmanager)"]
     assert again.linux == hello_spec.linux
+
+
+def test_wm_class_roundtrip(window, hello_project):
+    window.form.linux.wm_class.setText(" Hello ")
+    assert window.save()
+    assert config.load(hello_project).linux.wm_class == "Hello"
+    window.open_config(hello_project)
+    assert window.form.linux.wm_class.text() == "Hello"
+
+
+def test_autostart_roundtrip(window, hello_project):
+    linux = window.form.linux
+    assert not linux.autostart_args.isEnabled()
+    linux.autostart.setChecked(True)
+    assert linux.autostart_args.isEnabled()
+    linux.autostart_args.setText('--minimized --profile "My Profile"')
+    assert window.save()
+    again = config.load(hello_project)
+    assert again.linux.autostart and again.linux.autostart_args == ["--minimized", "--profile", "My Profile"]
+    assert again.windows is None
+    window.open_config(hello_project)
+    assert linux.autostart.isChecked()
+    assert linux.autostart_args.text() == "--minimized --profile 'My Profile'"
+    linux.autostart.setChecked(False)  # unchecked: the arguments are dropped
+    assert window.save()
+    assert config.load(hello_project).linux.autostart_args == []
 
 
 def test_save_keeps_format_options(window, hello_project):
