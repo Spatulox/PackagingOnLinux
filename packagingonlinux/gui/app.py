@@ -85,8 +85,6 @@ class MainWindow(QMainWindow):
     def _make_actions(self) -> None:
         self.recent_menu = QMenu("Ouvrir un fichier &récent", self)
         self.recent_menu.aboutToShow.connect(self._fill_recent_menu)
-        toolbar = self.addToolBar("Fichier")
-        toolbar.setMovable(False)
         menu = self.menuBar().addMenu("&Fichier")
         for text, shortcut, slot in [
             ("Nouveau", QKeySequence.StandardKey.New, self.new_config),
@@ -98,19 +96,26 @@ class MainWindow(QMainWindow):
             action.setShortcut(shortcut)
             action.triggered.connect(slot)
             menu.addAction(action)
-            toolbar.addAction(action)
             if slot == self.ask_open:
                 menu.addMenu(self.recent_menu)
-                # The toolbar's Open button gets a drop-down arrow with the same list.
-                button = toolbar.widgetForAction(action)
-                if isinstance(button, QToolButton):
-                    button.setMenu(self.recent_menu)
-                    button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
         menu.addSeparator()
         quit_action = QAction("Quitter", self)
         quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         quit_action.triggered.connect(self.close)
         menu.addAction(quit_action)
+        
+        # Menu À propos
+        help_menu = self.menuBar().addMenu("&À propos")
+        version_action = QAction("Version", self)
+        version_action.triggered.connect(
+            lambda: QMessageBox.information(self, "Version", f"PackagingOnLinux {__version__}")
+        )
+        help_menu.addAction(version_action)
+        github_action = QAction("Aide", self)
+        github_action.triggered.connect(
+            lambda: QDesktopServices.openUrl(QUrl("https://github.com/Spatulox/PackagingOnLinux"))
+        )
+        help_menu.addAction(github_action)
 
     def _fill_recent_menu(self) -> None:
         """Rebuilt each time the menu opens, so it lists only files that still exist."""
