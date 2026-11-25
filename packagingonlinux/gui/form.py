@@ -11,7 +11,7 @@ from packagingonlinux.config import (
 )
 from packagingonlinux.gui.qt import (
     QCheckBox, QComboBox, QFileDialog, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-    QPixmap, QPlainTextEdit, QPushButton, Qt, QTabWidget, QVBoxLayout, QWidget, Signal,
+    QPixmap, QPlainTextEdit, QPushButton, Qt, QTabWidget, QToolButton, QVBoxLayout, QWidget, Signal,
 )
 
 
@@ -192,7 +192,19 @@ class TargetWidget(QWidget):
             "Souvent le nom du programme (GTK, Wails, Qt) ou le « name » du package.json (Electron).")
         if not windows:  # Windows has no man pages nor window classes
             self._form.addRow("Pages de manuel", self.man)
-            self._form.addRow("WM_CLASS de la fenêtre", self.wm_class)
+            # WM_CLASS avec bouton d'aide
+            wm_class_container = QWidget()
+            wm_class_layout = QHBoxLayout(wm_class_container)
+            wm_class_layout.setContentsMargins(0, 0, 0, 0)
+            wm_class_label = QLabel("WM_CLASS de la fenêtre")
+            help_button = QToolButton()
+            help_button.setText("?")
+            help_button.setToolTip(self.wm_class.toolTip())
+            wm_class_layout.addWidget(wm_class_label)
+            wm_class_layout.addWidget(help_button)
+            wm_class_layout.addStretch()
+            wm_class_layout.addWidget(self.wm_class)
+            self._form.addRow(wm_class_container)
         self.autostart = QCheckBox("Lancer l'application à l'ouverture de session")
         self.autostart.setToolTip(
             "Ajoute un lanceur dans /etc/xdg/autostart (deb, rpm, tar.gz) : actif pour tous les\n"
