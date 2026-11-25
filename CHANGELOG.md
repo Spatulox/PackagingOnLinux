@@ -3,7 +3,7 @@
 All notable changes to PackagingOnLinux are documented here.
 A release is published only for a version that has a section in this file.
 
-## [Unreleased]
+## [0.3.1]
 
 ### Added
 - Weak dependencies in `[deps]`: `deb_recommends` and `deb_suggests` fill the deb `Recommends` and `Suggests` fields, `rpm_recommends` and `rpm_suggests` the rpm `Recommends:` and `Suggests:` tags (« Recommandées » / « Suggérées » in the GUI). An rpm dependency written with `a | b` is rejected: rpm needs `(a or b)`.

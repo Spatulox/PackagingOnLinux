@@ -3,7 +3,7 @@
 [app]
 id = "io.github.spatulox.PackagingOnLinux"
 name = "PackagingOnLinux"
-version = "0.1.4"
+version = "0.3.1"
 summary = "Package any prebuilt app for every Linux format"
 description = """
 Describe an application once, pick the formats, and get deb, rpm, tar.gz
@@ -15,7 +15,7 @@ homepage = "https://github.com/Spatulox/PackagingOnLinux"
 categories = ["Development"]
 
 [linux]
-command = "rm -rf build/app && mkdir -p build/app && cp -r packagingonlinux build/app/ && find build/app -name __pycache__ -prune -exec rm -rf {} + && sed -i \"s/^__version__ = .*/__version__ = \\\"$APP_VERSION\\\"/\" build/app/packagingonlinux/__init__.py && install -D -m 755 selfpack/linux/launcher build/app/bin/packagingonlinux"
+command = "rm -rf build/app && mkdir -p build/app && cp -r packagingonlinux build/app/ && find build/app -name __pycache__ -prune -exec rm -rf {} + && sed -i \"s/^__version__ = .*/__version__ = \\\"$APP_VERSION\\\"/\" packagingonlinux/__init__.py build/app/packagingonlinux/__init__.py && install -D -m 755 selfpack/linux/launcher build/app/bin/packagingonlinux"
 dir = "build/app"
 exec = "bin/packagingonlinux"
 icon = "selfpack/packagingonlinux.svg"
