@@ -5,8 +5,8 @@ it are resolved against the directory that contains the file.
 
 Schema:
     [app]     id, name, version, summary, description, license, maintainer, homepage, categories
-    [linux]   command, binary | dir (+ exec), icon, man
-    [windows] command, binary | dir (+ exec), icon      (optional, same keys but man)
+    [linux]   command, binary | dir (+ exec), icon, man, wm_class
+    [windows] command, binary | dir (+ exec), icon      (optional, same keys but man and wm_class)
     [deps]    auto, deb, rpm, deb_recommends, deb_suggests, rpm_recommends, rpm_suggests
               (optional, Linux only)
     [flatpak] runtime, runtime_version, sdk, finish_args      (optional)
@@ -55,7 +55,7 @@ class ConfigError(ValueError):
 @dataclass
 class Target:
     """What to package for one platform: a single executable or a directory, plus an icon,
-    man pages (Linux only), and the optional command that produces them."""
+    man pages and the window class (Linux only), and the optional command that produces them."""
 
     binary: Path | None = None
     dir: Path | None = None
@@ -63,6 +63,8 @@ class Target:
     icon: Path | None = None
     command: str = ""
     man: list[Path] = field(default_factory=list)
+    # WM_CLASS (X11) / app_id (Wayland) of the app's windows, when it is not the app id.
+    wm_class: str = ""
 
     @property
     def exec_name(self) -> str:
@@ -96,6 +98,10 @@ class Target:
                 problems.append(f"icon not found: {self.icon}")
         if self.man and section != "linux":
             problems.append(f"[{section}] man pages are only installed by Linux formats: move 'man' to [linux]")
+        if self.wm_class and section != "linux":
+            problems.append(f"[{section}] wm_class is only used by Linux formats: move it to [linux]")
+        if any(c in self.wm_class for c in "\n\r"):
+            problems.append(f"[{section}] wm_class must be a single line")
         for page in self.man:
             if man_section(page) is None:
                 problems.append(f"man page {page.name!r} must end with its section, e.g. myapp.1 or myapp.1.gz")
@@ -287,6 +293,7 @@ def _target(base_dir: Path, table: dict, where: str) -> Target:
         icon=_path(base_dir, table.get("icon")),
         command=str(table.get("command", "")),
         man=[_path(base_dir, page) for page in _str_list(table, "man", where)],
+        wm_class=str(table.get("wm_class", "")).strip(),
     )
 
 
@@ -409,6 +416,7 @@ def _target_table(target: Target, base_dir: Path) -> dict:
         "binary": _rel(target.binary, base_dir), "dir": _rel(target.dir, base_dir),
         "exec": target.exec if target.dir else "", "icon": _rel(target.icon, base_dir),
         "man": [_rel(page, base_dir) for page in target.man],
+        "wm_class": target.wm_class,
     }
 
 

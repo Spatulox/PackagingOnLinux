@@ -68,6 +68,10 @@ def desktop_entry(spec: AppSpec) -> str:
     ]
     if target.icon:
         lines.insert(4, f"Icon={spec.id}")
+    if target.wm_class:
+        # Desktops match a window to its .desktop file by name, or by this key when the
+        # window's WM_CLASS / app_id is not the app id.
+        lines.append(f"StartupWMClass={target.wm_class}")
     return "\n".join(lines) + "\n"
 
 

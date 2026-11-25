@@ -173,8 +173,17 @@ class TargetWidget(QWidget):
         self._form.addRow("Icône", icon_row)
         self._form.addRow("Commande de compilation", self.command)
         self.man = ManPagesField()
-        if not windows:  # Windows has no man pages
+        self.wm_class = QLineEdit()
+        self.wm_class.setPlaceholderText("optionnel, si différent de l'identifiant de l'appli")
+        self.wm_class.setToolTip(
+            "Le bureau relie une fenêtre à son lanceur (icône du dock) par l'identifiant de l'appli.\n"
+            "Si la fenêtre annonce un autre nom, indiquez-le ici (StartupWMClass du .desktop).\n"
+            "X11 : lancez xprop WM_CLASS puis cliquez sur la fenêtre (2e valeur).\n"
+            "Wayland : l'app_id de la fenêtre.\n"
+            "Souvent le nom du programme (GTK, Wails, Qt) ou le « name » du package.json (Electron).")
+        if not windows:  # Windows has no man pages nor window classes
             self._form.addRow("Pages de manuel", self.man)
+            self._form.addRow("WM_CLASS de la fenêtre", self.wm_class)
 
         self.mode.currentIndexChanged.connect(self._update_mode)
         self.binary.changed.connect(self._update_arch)
@@ -235,6 +244,7 @@ class TargetWidget(QWidget):
         self.icon.set_path(target.icon)
         self.command.setText(target.command)
         self.man.set_paths(target.man)
+        self.wm_class.setText(target.wm_class)
 
     def target(self) -> Target | None:
         """The edited target, or None when every field is empty (= no section for this platform)."""
@@ -246,6 +256,7 @@ class TargetWidget(QWidget):
             icon=self.icon.path(),
             command=self.command.text().strip(),
             man=self.man.paths() if self.platform == "linux" else [],
+            wm_class=self.wm_class.text().strip() if self.platform == "linux" else "",
         )
         return None if target == Target() else target
 

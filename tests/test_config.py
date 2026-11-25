@@ -200,3 +200,21 @@ def test_rpm_alternatives_with_pipe_rejected(hello_spec):
     problems = hello_spec.validate()
     assert len(problems) == 1 and "[deps] rpm_suggests" in problems[0] and "(a or b)" in problems[0]
     assert hello_spec.validate(platforms=()) == []  # checked with the Linux target only
+
+
+def test_wm_class_roundtrip(hello_spec, hello_project):
+    hello_spec.linux.wm_class = "Hello"
+    config.save(hello_spec, hello_project)
+    assert 'wm_class = "Hello"' in hello_project.read_text()
+    again = config.load(hello_project)
+    assert again.linux.wm_class == "Hello"
+    assert again.validate() == []
+
+
+def test_wm_class_problems(hello_spec, tmp_path):
+    hello_spec.linux.wm_class = "Hello\nExec=evil"
+    assert any("wm_class must be a single line" in p for p in hello_spec.validate())
+    hello_spec.linux.wm_class = ""
+    hello_spec.windows = config.Target(binary=tmp_path / "a.exe", wm_class="Hello")
+    assert any("[windows] wm_class is only used by Linux formats" in p
+               for p in hello_spec.validate(check_files=False))

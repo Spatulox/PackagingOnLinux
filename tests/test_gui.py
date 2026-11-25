@@ -83,6 +83,14 @@ def test_form_save_roundtrip(window, hello_project, hello_spec):
     assert again.linux == hello_spec.linux
 
 
+def test_wm_class_roundtrip(window, hello_project):
+    window.form.linux.wm_class.setText(" Hello ")
+    assert window.save()
+    assert config.load(hello_project).linux.wm_class == "Hello"
+    window.open_config(hello_project)
+    assert window.form.linux.wm_class.text() == "Hello"
+
+
 def test_save_keeps_format_options(window, hello_project):
     hello_project.write_text(hello_project.read_text() + '\n[flatpak]\nfinish_args = ["--filesystem=home"]\n'
                              '\n[snap]\nconfinement = "classic"\n')

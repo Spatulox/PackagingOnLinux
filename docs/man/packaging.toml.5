@@ -91,12 +91,23 @@ The file name ends with the section, which picks \fIN\fR: \fBmyapp.1\fR,
 Debian policy wants a man page for every command in \fI/usr/bin\fR.
 Only the deb, rpm and tar.gz packages make them available to
 .BR man (1).
+.TP
+\fBwm_class\fR (string)
+The WM_CLASS (X11) or app_id (Wayland) of the app's windows, written as
+\fBStartupWMClass\fR in the \fI.desktop\fR file.
+Desktops match a window to its launcher by the \fI.desktop\fR file name, which is the
+app \fBid\fR, or by this key: without it, a window that announces another name gets a
+generic dock icon.
+GTK, Wails and Qt apps usually announce the program name, Electron apps the \fBname\fR of
+their \fIpackage.json\fR.
+Find it with \fBxprop WM_CLASS\fR (the second value) on X11.
+Leave it out when it already is the app \fBid\fR.
 .PP
 The architecture is read from the executable's ELF header; a script is packaged as
 architecture\-independent (deb \fBall\fR, rpm \fBnoarch\fR).
 .SH "[windows] SECTION"
 What to package for the Windows formats (\fBzip\fR, \fBnsis\fR): the same keys as
-\fB[linux]\fR except \fBman\fR, with a Windows executable (\fI.exe\fR).
+\fB[linux]\fR except \fBman\fR and \fBwm_class\fR, with a Windows executable (\fI.exe\fR).
 The architecture (x86, x64, arm64) is read from its PE header.
 An empty \fB[windows]\fR section still means "build for Windows".
 .TP

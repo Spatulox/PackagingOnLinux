@@ -7,6 +7,7 @@ A release is published only for a version that has a section in this file.
 
 ### Added
 - Weak dependencies in `[deps]`: `deb_recommends` and `deb_suggests` fill the deb `Recommends` and `Suggests` fields, `rpm_recommends` and `rpm_suggests` the rpm `Recommends:` and `Suggests:` tags (« Recommandées » / « Suggérées » in the GUI). An rpm dependency written with `a | b` is rejected: rpm needs `(a or b)`.
+- `wm_class` key in `[linux]` (« WM_CLASS de la fenêtre » in the GUI): written as `StartupWMClass` in the `.desktop` file of every Linux format, so that the desktop links the app's windows to its launcher when they announce another name than the app id.
 
 ## [0.2.0]
 

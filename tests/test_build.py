@@ -27,6 +27,7 @@ def test_stage_layout(hello_spec, tmp_path):
     ]
     desktop = (root / "usr/share/applications/org.example.Hello.desktop").read_text()
     assert "Exec=hello\n" in desktop and "Icon=org.example.Hello\n" in desktop
+    assert "StartupWMClass" not in desktop
     assert (root / "usr/bin/hello").stat().st_mode & 0o777 == 0o755
 
 
@@ -66,8 +67,16 @@ def test_directory_app_uses_symlink(hello_spec, tmp_path):
     assert (root / "usr/lib/hello/data.txt").exists()
 
 
+def test_wm_class_goes_to_desktop_file(hello_spec, tmp_path):
+    hello_spec.linux.wm_class = "Hello"
+    staging.build_stage(hello_spec, tmp_path)
+    desktop = (tmp_path / "usr/share/applications/org.example.Hello.desktop").read_text()
+    assert "StartupWMClass=Hello\n" in desktop
+
+
 @pytest.mark.skipif(not shutil.which("desktop-file-validate"), reason="desktop-file-utils missing")
 def test_desktop_file_is_valid(hello_spec, tmp_path):
+    hello_spec.linux.wm_class = "Hello"
     staging.build_stage(hello_spec, tmp_path)
     subprocess.run(["desktop-file-validate",
                     str(tmp_path / "usr/share/applications/org.example.Hello.desktop")], check=True)
