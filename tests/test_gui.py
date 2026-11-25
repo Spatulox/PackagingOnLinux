@@ -72,10 +72,14 @@ def test_open_fills_form(window, hello_spec):
 def test_form_save_roundtrip(window, hello_project, hello_spec):
     window.form.summary.setText("Changed summary")
     window.form.deps_deb.setText("libfoo1, libbar2")
+    window.form.deps_deb_suggests.setText("gnome-keyring | kwalletmanager, seahorse")
+    window.form.deps_rpm_recommends.setText("(gnome-keyring or kwalletmanager)")
     assert window.save()
     again = config.load(hello_project)
     assert again.summary == "Changed summary"
     assert again.deps_deb == ["libfoo1", "libbar2"]
+    assert again.deps_deb_suggests == ["gnome-keyring | kwalletmanager", "seahorse"]
+    assert again.deps_rpm_recommends == ["(gnome-keyring or kwalletmanager)"]
     assert again.linux == hello_spec.linux
 
 

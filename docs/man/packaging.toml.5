@@ -117,6 +117,19 @@ Extra deb dependencies, in Debian syntax, e.g. \fB["python3 (>= 3.11)", "libgtk\
 .TP
 \fBrpm\fR (list of strings)
 Extra rpm requirements, e.g. \fB["python3 >= 3.11", "gtk3"]\fR.
+.TP
+\fBdeb_recommends\fR, \fBdeb_suggests\fR (lists of strings)
+Weak deb dependencies: the \fBRecommends\fR field, installed by default but not required,
+and the \fBSuggests\fR field, only listed.
+Debian syntax, with alternatives separated by \fB|\fR, e.g.
+\fB["gnome\-keyring | kwalletmanager | keepassxc"]\fR.
+.TP
+\fBrpm_recommends\fR, \fBrpm_suggests\fR (lists of strings)
+Weak rpm dependencies (\fBRecommends:\fR and \fBSuggests:\fR, RPM 4.12 or later).
+RPM has no \fBa | b\fR alternatives: write a rich dependency instead, e.g.
+\fB["(gnome\-keyring or kwalletmanager)"]\fR.
+.PP
+The other formats ignore \fB[deps]\fR.
 .SH "[flatpak] SECTION"
 Options of the \fBflatpak\fR format (optional).
 An unknown key is an error.
@@ -269,6 +282,8 @@ binary = "build/myapp.exe"
 [deps]
 deb = ["libgtk\-3\-0"]
 rpm = ["gtk3"]
+deb_suggests = ["gnome\-keyring | kwalletmanager"]
+rpm_suggests = ["(gnome\-keyring or kwalletmanager)"]
 
 [output]
 formats = ["deb", "rpm", "zip", "nsis"]

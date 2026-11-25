@@ -7,7 +7,8 @@ Schema:
     [app]     id, name, version, summary, description, license, maintainer, homepage, categories
     [linux]   command, binary | dir (+ exec), icon, man
     [windows] command, binary | dir (+ exec), icon      (optional, same keys but man)
-    [deps]    auto, deb, rpm        (optional, Linux only)
+    [deps]    auto, deb, rpm, deb_recommends, deb_suggests, rpm_recommends, rpm_suggests
+              (optional, Linux only)
     [flatpak] runtime, runtime_version, sdk, finish_args      (optional)
     [snap]    base, confinement, grade, plugs, extensions, stage_packages   (optional)
     [output]  formats, dir
@@ -159,6 +160,11 @@ class AppSpec:
     deps_auto: bool = True
     deps_deb: list[str] = field(default_factory=list)
     deps_rpm: list[str] = field(default_factory=list)
+    # Weak dependencies, installed by default (recommends) or only listed (suggests).
+    deps_deb_recommends: list[str] = field(default_factory=list)
+    deps_deb_suggests: list[str] = field(default_factory=list)
+    deps_rpm_recommends: list[str] = field(default_factory=list)
+    deps_rpm_suggests: list[str] = field(default_factory=list)
     flatpak: FlatpakOptions = field(default_factory=FlatpakOptions)
     snap: SnapOptions = field(default_factory=SnapOptions)
     formats: list[str] = field(default_factory=lambda: ["deb", "rpm"])
@@ -230,7 +236,19 @@ class AppSpec:
         target = self.target(platform)
         if target is None:
             return [f"no [{platform}] section in the config: it is needed to build {platform} formats"]
-        return target.validate(platform, check_files)
+        problems = target.validate(platform, check_files)
+        if platform == "linux":
+            problems += self.deps_problems()
+        return problems
+
+    def deps_problems(self) -> list[str]:
+        problems = []
+        for key in ("rpm", "rpm_recommends", "rpm_suggests"):
+            for dep in getattr(self, f"deps_{key}"):
+                if "|" in dep:
+                    problems.append(f"[deps] {key}: {dep!r}: rpm has no 'a | b' alternatives, "
+                                    "write a rich dependency instead, e.g. '(a or b)'")
+        return problems
 
 
 def suggest_id(name: str, maintainer: str = "") -> str:
@@ -330,6 +348,10 @@ def from_dict(data: dict, base_dir: Path) -> AppSpec:
         deps_auto=bool(deps.get("auto", True)),
         deps_deb=_str_list(deps, "deb", "deps"),
         deps_rpm=_str_list(deps, "rpm", "deps"),
+        deps_deb_recommends=_str_list(deps, "deb_recommends", "deps"),
+        deps_deb_suggests=_str_list(deps, "deb_suggests", "deps"),
+        deps_rpm_recommends=_str_list(deps, "rpm_recommends", "deps"),
+        deps_rpm_suggests=_str_list(deps, "rpm_suggests", "deps"),
         flatpak=_options(FlatpakOptions, data.get("flatpak", {}), "flatpak"),
         snap=_options(SnapOptions, data.get("snap", {}), "snap"),
         formats=_str_list(output, "formats", "output") or ["deb", "rpm"],
@@ -408,7 +430,11 @@ def to_toml(spec: AppSpec, base_dir: Path) -> str:
         if target is not None:
             sections.append((platform, _target_table(target, base_dir)))
     sections += [
-        ("deps", {"auto": spec.deps_auto, "deb": spec.deps_deb, "rpm": spec.deps_rpm}),
+        ("deps", {
+            "auto": spec.deps_auto, "deb": spec.deps_deb, "rpm": spec.deps_rpm,
+            "deb_recommends": spec.deps_deb_recommends, "deb_suggests": spec.deps_deb_suggests,
+            "rpm_recommends": spec.deps_rpm_recommends, "rpm_suggests": spec.deps_rpm_suggests,
+        }),
         ("flatpak", _changed_options(spec.flatpak)),
         ("snap", _changed_options(spec.snap)),
         ("output", {"formats": spec.formats, "dir": _rel(spec.output_dir, base_dir)}),

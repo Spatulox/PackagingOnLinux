@@ -307,11 +307,29 @@ class AppForm(QWidget):
         self.deps_deb.setPlaceholderText("ex. libgtk-3-0, libwebkit2gtk-4.1-0")
         self.deps_rpm = QLineEdit()
         self.deps_rpm.setPlaceholderText("ex. gtk3, webkit2gtk4.1")
+        weak_help = (
+            "Dépendances facultatives : l'appli fonctionne sans.\n"
+            "Recommandées : installées par défaut, mais l'utilisateur peut les refuser.\n"
+            "Suggérées : seulement signalées, jamais installées automatiquement.")
+        self.deps_deb_recommends = QLineEdit()
+        self.deps_deb_suggests = QLineEdit()
+        self.deps_deb_suggests.setPlaceholderText("ex. gnome-keyring | kwalletmanager | keepassxc")
+        self.deps_rpm_recommends = QLineEdit()
+        self.deps_rpm_suggests = QLineEdit()
+        self.deps_rpm_suggests.setPlaceholderText("ex. (gnome-keyring or kwalletmanager)")
+        for edit in (self.deps_deb_recommends, self.deps_deb_suggests):
+            edit.setToolTip(weak_help + "\nAlternatives séparées par « | », ex. a | b.")
+        for edit in (self.deps_rpm_recommends, self.deps_rpm_suggests):
+            edit.setToolTip(weak_help + "\nAlternatives en dépendance riche, ex. (a or b) : « | » n'existe pas en rpm.")
         deps = QGroupBox("Dépendances")
         d = QFormLayout(deps)
         d.addRow(self.deps_auto)
         d.addRow("En plus (deb)", self.deps_deb)
         d.addRow("En plus (rpm)", self.deps_rpm)
+        d.addRow("Recommandées (deb)", self.deps_deb_recommends)
+        d.addRow("Suggérées (deb)", self.deps_deb_suggests)
+        d.addRow("Recommandées (rpm)", self.deps_rpm_recommends)
+        d.addRow("Suggérées (rpm)", self.deps_rpm_suggests)
 
         linux_tab = QWidget()
         linux_layout = QVBoxLayout(linux_tab)
@@ -378,6 +396,10 @@ class AppForm(QWidget):
         self.deps_auto.setChecked(spec.deps_auto)
         self.deps_deb.setText(", ".join(spec.deps_deb))
         self.deps_rpm.setText(", ".join(spec.deps_rpm))
+        self.deps_deb_recommends.setText(", ".join(spec.deps_deb_recommends))
+        self.deps_deb_suggests.setText(", ".join(spec.deps_deb_suggests))
+        self.deps_rpm_recommends.setText(", ".join(spec.deps_rpm_recommends))
+        self.deps_rpm_suggests.setText(", ".join(spec.deps_rpm_suggests))
         self._id_auto = not spec.id
 
     def to_spec(self, base_dir: Path, formats: list[str], output_dir: Path) -> AppSpec:
@@ -396,6 +418,10 @@ class AppForm(QWidget):
             deps_auto=self.deps_auto.isChecked(),
             deps_deb=_split(self.deps_deb.text()),
             deps_rpm=_split(self.deps_rpm.text()),
+            deps_deb_recommends=_split(self.deps_deb_recommends.text()),
+            deps_deb_suggests=_split(self.deps_deb_suggests.text()),
+            deps_rpm_recommends=_split(self.deps_rpm_recommends.text()),
+            deps_rpm_suggests=_split(self.deps_rpm_suggests.text()),
             flatpak=copy.deepcopy(self._flatpak),
             snap=copy.deepcopy(self._snap),
             formats=formats,

@@ -59,6 +59,8 @@ class DebBackend(Backend):
             "Maintainer": spec.maintainer or "Unknown <unknown@localhost>",
             "Installed-Size": str(staging.installed_size_kib(ctx.stage)),
             "Depends": ", ".join(depends),
+            "Recommends": ", ".join(spec.deps_deb_recommends),
+            "Suggests": ", ".join(spec.deps_deb_suggests),
             "Section": _SECTIONS.get(spec.categories[0], "misc"),
             "Priority": "optional",
             "Homepage": spec.homepage,

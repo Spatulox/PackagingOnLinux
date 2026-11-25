@@ -20,7 +20,12 @@ def spec_file(ctx: BuildContext) -> str:
         libdir = ctx.stage / "usr/lib" / spec.package_name
         owned = [libdir] + [d for d in sorted(libdir.rglob("*")) if d.is_dir() and not d.is_symlink()]
         files = [f"%dir {_quote('/' + d.relative_to(ctx.stage).as_posix())}" for d in owned] + files
-    requires = "".join(f"Requires: {r}\n" for r in spec.deps_rpm)
+    requires = "".join(
+        f"{tag}: {dep}\n"
+        for tag, deps in (("Requires", spec.deps_rpm), ("Recommends", spec.deps_rpm_recommends),
+                          ("Suggests", spec.deps_rpm_suggests))
+        for dep in deps
+    )
     url = f"URL: {spec.homepage}\n" if spec.homepage else ""
     packager = f"Packager: {spec.maintainer}\n" if spec.maintainer else ""
     autoreq = "" if spec.deps_auto else "AutoReq: no\n"

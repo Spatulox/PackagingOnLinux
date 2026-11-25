@@ -177,3 +177,26 @@ def test_man_page_problems(hello_spec, tmp_path):
     hello_spec.windows = config.Target(binary=tmp_path / "a.exe", man=[tmp_path / "hello.1"])
     assert any("[windows] man pages are only installed by Linux formats" in p
                for p in hello_spec.validate(check_files=False))
+
+
+def test_weak_deps_roundtrip(hello_spec, hello_project):
+    config.save(hello_spec, hello_project)
+    assert "[deps]" not in hello_project.read_text()
+    hello_spec.deps_deb_recommends = ["libsecret-1-0"]
+    hello_spec.deps_deb_suggests = ["gnome-keyring | kwalletmanager | keepassxc"]
+    hello_spec.deps_rpm_recommends = ["libsecret"]
+    hello_spec.deps_rpm_suggests = ["(gnome-keyring or kwalletmanager)"]
+    config.save(hello_spec, hello_project)
+    assert 'deb_suggests = ["gnome-keyring | kwalletmanager | keepassxc"]' in hello_project.read_text()
+    again = config.load(hello_project)
+    for kind in ("deb_recommends", "deb_suggests", "rpm_recommends", "rpm_suggests"):
+        assert getattr(again, f"deps_{kind}") == getattr(hello_spec, f"deps_{kind}"), kind
+    assert again.validate() == []
+
+
+def test_rpm_alternatives_with_pipe_rejected(hello_spec):
+    hello_spec.deps_rpm_suggests = ["gnome-keyring | kwalletmanager"]
+    hello_spec.deps_deb_suggests = ["gnome-keyring | kwalletmanager"]  # fine for deb
+    problems = hello_spec.validate()
+    assert len(problems) == 1 and "[deps] rpm_suggests" in problems[0] and "(a or b)" in problems[0]
+    assert hello_spec.validate(platforms=()) == []  # checked with the Linux target only

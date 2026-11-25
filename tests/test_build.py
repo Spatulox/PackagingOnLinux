@@ -79,6 +79,18 @@ def test_rpm_spec_lists_files(hello_spec, tmp_path):
     text = spec_file(BuildContext(hello_spec, stage, tmp_path, tmp_path, print))
     assert "Name: hello\n" in text and "BuildArch: noarch\n" in text
     assert "\n/usr/bin/hello\n" in text
+    assert "Recommends" not in text and "Suggests" not in text
+
+
+def test_rpm_spec_weak_deps(hello_spec, tmp_path):
+    hello_spec.deps_rpm = ["python3"]
+    hello_spec.deps_rpm_recommends = ["libsecret"]
+    hello_spec.deps_rpm_suggests = ["(gnome-keyring or kwalletmanager)", "keepassxc"]
+    stage = tmp_path / "stage"
+    staging.build_stage(hello_spec, stage)
+    text = spec_file(BuildContext(hello_spec, stage, tmp_path, tmp_path, print))
+    assert ("Requires: python3\nRecommends: libsecret\n"
+            "Suggests: (gnome-keyring or kwalletmanager)\nSuggests: keepassxc\n") in text
 
 
 def test_rpm_moved_across_filesystems(hello_spec, tmp_path, monkeypatch):
@@ -114,10 +126,23 @@ def test_build_deb_and_tarball(hello_spec):
     assert deb.name == "hello_1.2.3_all.deb"
     info = subprocess.run(["dpkg-deb", "-f", str(deb)], capture_output=True, text=True, check=True).stdout
     assert "Package: hello" in info and "Maintainer: Test <test@example.org>" in info
+    assert "Recommends" not in info and "Suggests" not in info
     contents = subprocess.run(["dpkg-deb", "-c", str(deb)], capture_output=True, text=True, check=True).stdout
     assert "root/root" in contents and "./usr/bin/hello" in contents
     with tarfile.open(result.packages["tarball"][0]) as tar:
         assert "usr/bin/hello" in tar.getnames()
+
+
+@pytest.mark.skipif(not shutil.which("dpkg-deb"), reason="dpkg-deb missing")
+def test_build_deb_weak_deps(hello_spec):
+    hello_spec.deps_deb_recommends = ["libsecret-1-0"]
+    hello_spec.deps_deb_suggests = ["gnome-keyring | kwalletmanager | keepassxc", "seahorse"]
+    result = core.build(hello_spec, ["deb"], log=lambda _: None)
+    assert result.ok, result.errors
+    info = subprocess.run(["dpkg-deb", "-f", str(result.packages["deb"][0])],
+                          capture_output=True, text=True, check=True).stdout
+    assert "Recommends: libsecret-1-0\n" in info
+    assert "Suggests: gnome-keyring | kwalletmanager | keepassxc, seahorse\n" in info
 
 
 @pytest.mark.skipif(not shutil.which("dpkg-deb"), reason="dpkg-deb missing")
