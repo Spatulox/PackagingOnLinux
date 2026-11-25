@@ -15,7 +15,9 @@ def _quote(path: str) -> str:
 def spec_file(ctx: BuildContext) -> str:
     spec = ctx.spec
     rpm_arch = spec.linux_arch[1]
-    files = [_quote(f) for f in staging.installed_files(ctx.stage)]
+    # Files in /etc (the autostart entry) are configuration: rpm keeps the admin's edits.
+    files = [("%config(noreplace) " if f.startswith("/etc/") else "") + _quote(f)
+             for f in staging.installed_files(ctx.stage)]
     if spec.linux.dir:
         libdir = ctx.stage / "usr/lib" / spec.package_name
         owned = [libdir] + [d for d in sorted(libdir.rglob("*")) if d.is_dir() and not d.is_symlink()]

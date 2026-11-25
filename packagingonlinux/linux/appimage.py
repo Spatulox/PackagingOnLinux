@@ -111,6 +111,7 @@ def make_appdir(ctx: BuildContext, appdir: Path) -> None:
     """Copy the stage into `appdir` and add AppRun, the root .desktop file and icon."""
     spec = ctx.spec
     shutil.copytree(ctx.stage, appdir, symlinks=True)
+    staging.drop_autostart(appdir, spec, ctx.log, "AppImage")
     (appdir / "AppRun").symlink_to(f"usr/bin/{spec.linux.exec_name}")
     shutil.copyfile(appdir / f"usr/share/applications/{spec.id}.desktop", appdir / f"{spec.id}.desktop")
     if spec.linux.icon:

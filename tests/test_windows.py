@@ -9,7 +9,7 @@ import pytest
 
 from packagingonlinux import config, core
 from packagingonlinux.windows import ico, pe, staging
-from packagingonlinux.windows.nsis import esc, nsis_script, product_version, shortcut_name
+from packagingonlinux.windows.nsis import esc, nsis_script, product_version, shortcut_name, win_arg
 from tests.conftest import make_pe, make_png
 
 
@@ -134,6 +134,49 @@ def test_nsis_uninstaller_removes_exactly_what_it_installed(windows_spec):
     assert "/r" not in uninstall
     assert "MUI_ICON" not in text  # no icon: shortcuts use the exe's own
     assert '"$INSTDIR\\bin\\app.exe" "" "$INSTDIR\\bin\\app.exe" 0' in text
+
+
+def test_nsis_autostart(windows_spec):
+    run_key = '"Software\\Microsoft\\Windows\\CurrentVersion\\Run" "org.example.Hello"'
+    text = _script(windows_spec)
+    assert "MUI_PAGE_COMPONENTS" not in text and "SecAutostart" not in text
+    # An autostart left by a previous version is always cleaned up.
+    assert f'Section "-Install"\n  DeleteRegValue HKCU {run_key}\n' in text
+    assert f"DeleteRegValue HKCU {run_key}" in text[text.index('Section "Uninstall"'):]
+
+    windows_spec.windows.autostart = True
+    windows_spec.windows.autostart_args = ["/minimized", "C:\\My Dir\\", 'say "hi"']
+    text = _script(windows_spec)
+    assert text.index("MUI_PAGE_COMPONENTS") < text.index("MUI_PAGE_DIRECTORY")
+    assert 'LangString Autostart ${LANG_FRENCH} "Lancer à l\'ouverture de session"' in text
+    section = text[text.index('Section "$(Autostart)" SecAutostart'):]
+    assert section.index("SectionEnd") > section.index(
+        f'WriteRegStr HKCU {run_key} "$\\"$INSTDIR\\hello.exe$\\" /minimized '
+        f'$\\"C:\\My Dir\\\\$\\" $\\"say \\$\\"hi\\$\\"$\\""')
+
+
+def test_win_arg():
+    assert win_arg("/minimized") == "/minimized"
+    assert win_arg("") == '""'
+    assert win_arg("My Dir") == '"My Dir"'
+    assert win_arg("C:\\My Dir\\") == '"C:\\My Dir\\\\"'
+    assert win_arg('a\\"b') == '"a\\\\\\"b"'
+
+
+def test_zip_ignores_autostart(windows_spec):
+    windows_spec.windows.autostart = True
+    logs = []
+    result = core.build(windows_spec, ["zip"], log=logs.append)
+    assert result.ok, result.errors
+    assert any("zip ignores autostart" in line for line in logs)
+
+
+@pytest.mark.skipif(not shutil.which("makensis"), reason="makensis missing (apt install nsis)")
+def test_build_nsis_installer_with_autostart(windows_spec):
+    windows_spec.windows.autostart = True
+    windows_spec.windows.autostart_args = ["--minimized", "My Dir"]
+    result = core.build(windows_spec, ["nsis"], log=lambda _: None)
+    assert result.ok, result.errors
 
 
 @pytest.mark.skipif(not shutil.which("makensis"), reason="makensis missing (apt install nsis)")

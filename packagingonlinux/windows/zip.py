@@ -17,6 +17,8 @@ class ZipBackend(Backend):
     def build(self, ctx: BuildContext) -> list[Path]:
         spec = ctx.spec
         out = ctx.outdir / f"{spec.file_stem}-{spec.version}-windows-{spec.windows_arch}.zip"
+        if spec.windows.autostart:
+            ctx.log("warning: the zip ignores autostart: it installs nothing (the setup.exe does)")
         with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
             for rel in staging.installed_files(ctx.stage):
                 zf.write(ctx.stage / rel, f"{spec.file_stem}/{rel}")

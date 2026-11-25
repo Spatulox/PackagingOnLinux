@@ -70,8 +70,10 @@ def _check_linux(spec: config.AppSpec) -> bool:
         stage = Path(tmp)
         for w in linux_staging.build_stage(spec, stage):
             print(f"warning: {w}")
+        desktop_files = [stage / f"usr/share/applications/{spec.id}.desktop",
+                         stage / linux_staging.AUTOSTART / f"{spec.id}.desktop"]
         validators = [
-            ("desktop-file-validate", [str(stage / f"usr/share/applications/{spec.id}.desktop")]),
+            ("desktop-file-validate", [str(f) for f in desktop_files if f.exists()]),
             ("appstreamcli", ["validate", "--no-net", "--explain",
                               str(stage / f"usr/share/metainfo/{spec.id}.metainfo.xml")]),
         ]

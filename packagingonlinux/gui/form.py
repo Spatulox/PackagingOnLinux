@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import shlex
 from pathlib import Path
 
 from packagingonlinux.linux import elf
@@ -50,6 +51,14 @@ class PathField(QWidget):
 
 def _split(text: str) -> list[str]:
     return [p.strip() for p in text.split(",") if p.strip()]
+
+
+def _split_args(text: str) -> list[str]:
+    """Command-line arguments typed on one line, with shell quoting ("My App")."""
+    try:
+        return shlex.split(text)
+    except ValueError:  # unbalanced quote
+        return text.split()
 
 
 class ManPagesField(QWidget):
@@ -184,6 +193,22 @@ class TargetWidget(QWidget):
         if not windows:  # Windows has no man pages nor window classes
             self._form.addRow("Pages de manuel", self.man)
             self._form.addRow("WM_CLASS de la fenêtre", self.wm_class)
+        self.autostart = QCheckBox("Lancer l'application à l'ouverture de session")
+        self.autostart.setToolTip(
+            "Ajoute un lanceur dans /etc/xdg/autostart (deb, rpm, tar.gz) : actif pour tous les\n"
+            "utilisateurs, chacun peut le couper dans « Applications au démarrage ».\n"
+            "AppImage, Flatpak et Snap l'ignorent : l'application doit le gérer elle-même."
+            if not windows else
+            "Ajoute une case « Lancer à l'ouverture de session », cochée par défaut, à l'installeur\n"
+            "(clé Run de l'utilisateur). Le zip l'ignore.")
+        self.autostart_args = QLineEdit()
+        self.autostart_args.setPlaceholderText("optionnels, ex. --minimized")
+        self.autostart_args.setToolTip('Arguments passés au démarrage automatique, séparés par des espaces.\n'
+                                       'Entourez de guillemets un argument qui contient des espaces : "Mon dossier".')
+        self.autostart_args.setEnabled(False)
+        self.autostart.toggled.connect(self.autostart_args.setEnabled)
+        self._form.addRow("Démarrage automatique", self.autostart)
+        self._form.addRow("Arguments au démarrage", self.autostart_args)
 
         self.mode.currentIndexChanged.connect(self._update_mode)
         self.binary.changed.connect(self._update_arch)
@@ -245,6 +270,8 @@ class TargetWidget(QWidget):
         self.command.setText(target.command)
         self.man.set_paths(target.man)
         self.wm_class.setText(target.wm_class)
+        self.autostart.setChecked(target.autostart)
+        self.autostart_args.setText(shlex.join(target.autostart_args))
 
     def target(self) -> Target | None:
         """The edited target, or None when every field is empty (= no section for this platform)."""
@@ -257,6 +284,8 @@ class TargetWidget(QWidget):
             command=self.command.text().strip(),
             man=self.man.paths() if self.platform == "linux" else [],
             wm_class=self.wm_class.text().strip() if self.platform == "linux" else "",
+            autostart=self.autostart.isChecked(),
+            autostart_args=_split_args(self.autostart_args.text()) if self.autostart.isChecked() else [],
         )
         return None if target == Target() else target
 

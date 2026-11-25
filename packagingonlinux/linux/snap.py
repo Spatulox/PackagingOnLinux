@@ -116,6 +116,7 @@ class SnapBackend(Backend):
         project = ctx.workdir / "project"
         shutil.copytree(ctx.stage, project / "stage", symlinks=True)
         point_icon_into_snap(spec, project / "stage")
+        staging.drop_autostart(project / "stage", spec, ctx.log, "snap")
         data = snapcraft_yaml(spec)
         (project / "snapcraft.yaml").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         arch = next(iter(data["platforms"]))

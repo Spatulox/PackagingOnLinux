@@ -78,6 +78,10 @@ class DebBackend(Backend):
                 digest = hashlib.md5(p.read_bytes()).hexdigest()
                 md5.append(f"{digest}  {p.relative_to(root).as_posix()}\n")
         (debian / "md5sums").write_text("".join(md5))
+        # Files in /etc (the autostart entry) are configuration: dpkg keeps the admin's edits.
+        conffiles = [f for f in staging.installed_files(ctx.stage) if f.startswith("/etc/")]
+        if conffiles:
+            (debian / "conffiles").write_text("".join(f + "\n" for f in conffiles))
         for f in debian.iterdir():
             f.chmod(0o644)
         # Desktop database and icon caches are refreshed by dpkg triggers: no postinst needed.

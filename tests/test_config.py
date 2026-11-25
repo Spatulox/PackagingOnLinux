@@ -218,3 +218,28 @@ def test_wm_class_problems(hello_spec, tmp_path):
     hello_spec.windows = config.Target(binary=tmp_path / "a.exe", wm_class="Hello")
     assert any("[windows] wm_class is only used by Linux formats" in p
                for p in hello_spec.validate(check_files=False))
+
+
+def test_autostart_roundtrip(hello_spec, hello_project):
+    config.save(hello_spec, hello_project)
+    assert "autostart" not in hello_project.read_text()  # false is the default: not written
+    hello_spec.linux.autostart = True
+    hello_spec.linux.autostart_args = ["--minimized", "--profile", "My Profile"]
+    config.save(hello_spec, hello_project)
+    text = hello_project.read_text()
+    assert 'autostart = true\nautostart_args = ["--minimized", "--profile", "My Profile"]' in text
+    again = config.load(hello_project)
+    assert again.linux == hello_spec.linux
+    assert again.validate() == []
+
+
+def test_autostart_problems(hello_spec, hello_project):
+    hello_spec.linux.autostart_args = ["--minimized"]
+    assert any("autostart_args is only used with autostart = true" in p for p in hello_spec.validate())
+    hello_spec.linux.autostart = True
+    hello_spec.linux.autostart_args = ["a\nb"]
+    assert any("must be a single line" in p for p in hello_spec.validate())
+    hello_project.write_text(hello_project.read_text().replace('icon = "hello.png"',
+                                                              'icon = "hello.png"\nautostart = "yes"'))
+    with pytest.raises(ConfigError, match="autostart must be true or false"):
+        config.load(hello_project)

@@ -37,6 +37,22 @@ def test_appdir_layout(hello_spec, tmp_path):
     assert (appdir / ".DirIcon").resolve() == (appdir / "org.example.Hello.png").resolve()
 
 
+def test_appimage_and_snap_drop_autostart(hello_spec, tmp_path):
+    hello_spec.linux.autostart = True
+    ctx = _ctx(hello_spec, tmp_path)
+    logs = []
+    ctx.log = logs.append
+    assert (ctx.stage / "etc/xdg/autostart/org.example.Hello.desktop").exists()
+    appimage.make_appdir(ctx, tmp_path / "AppDir")
+    assert not (tmp_path / "AppDir/etc").exists()
+    assert (ctx.stage / "etc/xdg/autostart").exists()  # the shared stage is left as is
+    assert "AppImage ignores autostart" in logs[0]
+    copy = tmp_path / "copy"
+    shutil.copytree(ctx.stage, copy, symlinks=True)
+    staging.drop_autostart(copy, hello_spec, logs.append, "snap")
+    assert not (copy / "etc").exists() and (copy / "usr/bin/hello").exists()
+
+
 def test_appimage_arch():
     class Spec:
         def __init__(self, arch):

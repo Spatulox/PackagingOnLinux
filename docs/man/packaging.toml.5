@@ -102,6 +102,19 @@ GTK, Wails and Qt apps usually announce the program name, Electron apps the \fBn
 their \fIpackage.json\fR.
 Find it with \fBxprop WM_CLASS\fR (the second value) on X11.
 Leave it out when it already is the app \fBid\fR.
+.TP
+\fBautostart\fR (boolean)
+Start the app when a user signs in, through an XDG autostart entry,
+\fI/etc/xdg/autostart/<id>.desktop\fR, that every desktop environment reads.
+It is installed by the deb, rpm and tar.gz packages, as a configuration file, and is on
+for every user, who can turn it off in the desktop's startup applications settings.
+AppImage, Flatpak and Snap install nothing system\-wide and ignore it, with a warning:
+the app must set it up itself (Background portal, or a file in \fI~/.config/autostart\fR).
+Default: \fBfalse\fR.
+.TP
+\fBautostart_args\fR (list of strings)
+Arguments given to the app when it is started at sign\-in, e.g. \fB["\-\-minimized"]\fR.
+Needs \fBautostart = true\fR.
 .PP
 The architecture is read from the executable's ELF header; a script is packaged as
 architecture\-independent (deb \fBall\fR, rpm \fBnoarch\fR).
@@ -109,6 +122,11 @@ architecture\-independent (deb \fBall\fR, rpm \fBnoarch\fR).
 What to package for the Windows formats (\fBzip\fR, \fBnsis\fR): the same keys as
 \fB[linux]\fR except \fBman\fR and \fBwm_class\fR, with a Windows executable (\fI.exe\fR).
 The architecture (x86, x64, arm64) is read from its PE header.
+With \fBautostart\fR, the installer shows a "Start when I sign in" check box, checked by
+default (and on in a silent install, \fB/S\fR), which registers the app with its
+\fBautostart_args\fR under the user's
+\fIHKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\fR key; the uninstaller removes
+it. The \fBzip\fR ignores \fBautostart\fR.
 An empty \fB[windows]\fR section still means "build for Windows".
 .TP
 \fBicon\fR (path)
@@ -239,6 +257,7 @@ app shows in the menus of any desktop environment:
 /usr/share/icons/hicolor/<size>/apps/<id>.png|.svg
 /usr/share/metainfo/<id>.metainfo.xml
 /usr/share/man/man<N>/<page>.gz              (with \fBman\fR)
+/etc/xdg/autostart/<id>.desktop              (with \fBautostart\fR; deb, rpm, tar.gz)
 .RE
 .fi
 .SH "OLD LAYOUT"
@@ -285,10 +304,14 @@ command = "make install DESTDIR=build/linux"
 dir = "build/linux/opt/myapp"
 exec = "bin/myapp"
 icon = "icons/myapp.png"
+autostart = true
+autostart_args = ["\-\-minimized"]
 
 [windows]
 command = "GOOS=windows GOARCH=amd64 go build \-o build/myapp.exe"
 binary = "build/myapp.exe"
+autostart = true
+autostart_args = ["/minimized"]
 
 [deps]
 deb = ["libgtk\-3\-0"]

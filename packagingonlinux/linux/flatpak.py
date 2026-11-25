@@ -83,6 +83,7 @@ class FlatpakBackend(Backend):
         arch = flatpak_arch(spec, ctx.log)
         source = ctx.workdir / "source"
         shutil.copytree(ctx.stage, source, symlinks=True)
+        staging.drop_autostart(source, spec, ctx.log, "Flatpak")
         manifest_path = ctx.workdir / f"{spec.id}.json"
         manifest_path.write_text(json.dumps(manifest(spec, source), indent=2) + "\n", encoding="utf-8")
 

@@ -6,6 +6,7 @@ Layout (single binary):
     usr/share/icons/hicolor/<N>x<N>/apps/<id>.png   (or scalable/apps/<id>.svg, or pixmaps/<id>.png)
     usr/share/metainfo/<id>.metainfo.xml
     usr/share/man/man<N>/<page>.gz                   ([linux] man, gzipped)
+    etc/xdg/autostart/<id>.desktop                   ([linux] autostart: started at sign-in)
 
 Layout (directory app): files go to usr/lib/<package>/ and usr/bin/<exec> is a relative symlink.
 
@@ -23,8 +24,12 @@ from xml.sax.saxutils import escape
 
 from packagingonlinux.config import AppSpec, ConfigError, Target, man_section
 from packagingonlinux.png import png_size
+from packagingonlinux.runner import Log
 
 HICOLOR_SIZES = {16, 22, 24, 32, 48, 64, 96, 128, 256, 512}
+# XDG autostart: every desktop starts the .desktop files found here when a user signs in.
+AUTOSTART = "etc/xdg/autostart"
+_EXEC_RESERVED = set(' \t\n"\'\\><~|&;$*?#()`')
 
 
 def _linux(spec: AppSpec) -> Target:
@@ -54,18 +59,33 @@ def icon_destination(spec: AppSpec) -> tuple[str, list[str]]:
     return f"usr/share/pixmaps/{spec.id}.png", [warning]
 
 
-def desktop_entry(spec: AppSpec) -> str:
+def exec_line(program: str, args: list[str] | tuple[str, ...] = ()) -> str:
+    """The value of a desktop file's Exec= key: arguments with reserved characters are
+    double-quoted (escaping " ` $ \\), then backslashes are escaped again for the key's
+    string value and % is doubled (it starts field codes)."""
+    def quote(arg: str) -> str:
+        if arg and not _EXEC_RESERVED.intersection(arg):
+            return arg
+        return '"' + "".join("\\" + c if c in '"`$\\' else c for c in arg) + '"'
+
+    line = " ".join(quote(a) for a in [program, *args])
+    return line.replace("\\", "\\\\").replace("%", "%%")
+
+
+def desktop_entry(spec: AppSpec, autostart: bool = False) -> str:
+    """The app's .desktop file, or with `autostart` the one started at sign-in (Exec= gets
+    the autostart arguments, and no Categories since it is not a menu entry)."""
     target = _linux(spec)
-    categories = ";".join(spec.categories) + ";"
     lines = [
         "[Desktop Entry]",
         "Type=Application",
         f"Name={spec.name}",
         f"Comment={spec.summary}",
-        f"Exec={target.exec_name}",
-        f"Categories={categories}",
+        f"Exec={exec_line(target.exec_name, target.autostart_args if autostart else ())}",
         "Terminal=false",
     ]
+    if not autostart:
+        lines.insert(5, "Categories=" + ";".join(spec.categories) + ";")
     if target.icon:
         lines.insert(4, f"Icon={spec.id}")
     if target.wm_class:
@@ -142,6 +162,8 @@ def build_stage(spec: AppSpec, root: Path) -> list[str]:
 
     _write(root / f"usr/share/applications/{spec.id}.desktop", desktop_entry(spec))
     _write(root / f"usr/share/metainfo/{spec.id}.metainfo.xml", metainfo(spec))
+    if target.autostart:
+        _write(root / AUTOSTART / f"{spec.id}.desktop", desktop_entry(spec, autostart=True))
 
     if target.icon:
         rel, icon_warnings = icon_destination(spec)
@@ -157,6 +179,19 @@ def build_stage(spec: AppSpec, root: Path) -> list[str]:
 
     _normalize_permissions(root)
     return warnings
+
+
+def drop_autostart(root: Path, spec: AppSpec, log: Log, fmt: str) -> None:
+    """Remove the XDG autostart file from a copy of the stage, for the formats that install
+    nothing system-wide (AppImage, Flatpak, Snap)."""
+    if not _linux(spec).autostart:
+        return
+    log(f"warning: {fmt} ignores autostart: it installs nothing system-wide, so the app must "
+        "set it up itself (Background portal, or a file in ~/.config/autostart)")
+    shutil.rmtree(root / AUTOSTART, ignore_errors=True)
+    for parent in (root / "etc/xdg", root / "etc"):
+        if parent.is_dir() and not any(parent.iterdir()):
+            parent.rmdir()
 
 
 def install_man_page(page: Path, root: Path) -> Path:

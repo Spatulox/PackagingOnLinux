@@ -91,6 +91,24 @@ def test_wm_class_roundtrip(window, hello_project):
     assert window.form.linux.wm_class.text() == "Hello"
 
 
+def test_autostart_roundtrip(window, hello_project):
+    linux = window.form.linux
+    assert not linux.autostart_args.isEnabled()
+    linux.autostart.setChecked(True)
+    assert linux.autostart_args.isEnabled()
+    linux.autostart_args.setText('--minimized --profile "My Profile"')
+    assert window.save()
+    again = config.load(hello_project)
+    assert again.linux.autostart and again.linux.autostart_args == ["--minimized", "--profile", "My Profile"]
+    assert again.windows is None
+    window.open_config(hello_project)
+    assert linux.autostart.isChecked()
+    assert linux.autostart_args.text() == "--minimized --profile 'My Profile'"
+    linux.autostart.setChecked(False)  # unchecked: the arguments are dropped
+    assert window.save()
+    assert config.load(hello_project).linux.autostart_args == []
+
+
 def test_save_keeps_format_options(window, hello_project):
     hello_project.write_text(hello_project.read_text() + '\n[flatpak]\nfinish_args = ["--filesystem=home"]\n'
                              '\n[snap]\nconfinement = "classic"\n')
