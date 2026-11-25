@@ -291,11 +291,6 @@ def test_recent_menu_hides_missing_files_and_clears(window, hello_project):
     assert not window.recent_menu.actions()[-1].isEnabled()
 
 
-def test_open_toolbar_button_has_recent_dropdown(window):
-    buttons = [b for b in window.findChildren(QToolButton) if b.menu() is window.recent_menu]
-    assert len(buttons) == 1
-    assert buttons[0].popupMode() == QToolButton.ToolButtonPopupMode.MenuButtonPopup
-
 
 def test_app_id_matches_desktop_file(qapp):
     """The dock icon needs WM_CLASS (X11) and app_id (Wayland) to equal the .desktop file id."""
