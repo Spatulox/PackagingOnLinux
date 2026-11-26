@@ -7,6 +7,7 @@ A release is published only for a version that has a section in this file.
 
 ### Added
 - `--version VERSION` option of `build` and `check`: replaces `[app] version` (and `$APP_VERSION` of the build command) without editing packaging.toml, e.g. with the version of a release tag in CI.
+- Reusable GitHub workflow `.github/workflows/package.yml`: other repositories build the packages of their packaging.toml with `uses: Spatulox/PackagingOnLinux/.github/workflows/package.yml@v0` and get them as `release-*` artifacts, ready for release-kit. It installs the tools of the requested formats, builds every format but snap on one runner and the snap on the Ubuntu release of `[snap] base`. The `v0` tag follows the latest stable release.
 
 ## [0.3.1]
 

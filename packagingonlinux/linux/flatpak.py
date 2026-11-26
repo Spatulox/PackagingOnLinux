@@ -76,6 +76,7 @@ class FlatpakBackend(Backend):
     required_tools = ("flatpak", "flatpak-builder")
     # librsvg2-common: flatpak-builder runs `appstreamcli compose`, which needs it to read SVG icons
     install_hint = "apt install flatpak flatpak-builder librsvg2-common  |  dnf install flatpak-builder"
+    apt_packages = ("flatpak", "flatpak-builder", "librsvg2-common")
 
     def build(self, ctx: BuildContext) -> list[Path]:
         spec = ctx.spec

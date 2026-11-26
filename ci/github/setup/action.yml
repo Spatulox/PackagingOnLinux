@@ -1,0 +1,48 @@
+# Internal to .github/workflows/package.yml: the steps every job of that workflow shares,
+# once the caller's repository is checked out and PackagingOnLinux is in .packagingonlinux/.
+name: PackagingOnLinux setup
+description: Python for PackagingOnLinux, and the prebuilt artifacts the config packages.
+
+inputs:
+  download:
+    description: Name (or glob) of the artifacts to download, empty for none.
+    default: ""
+  download-path:
+    description: Where to download them, relative to the repository.
+    default: .
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v7
+      with:
+        python-version: "3.12"
+
+    - name: PackagingOnLinux on PYTHONPATH
+      shell: bash
+      run: |
+        echo "PYTHONPATH=$GITHUB_WORKSPACE/.packagingonlinux" >> "$GITHUB_ENV"
+        PYTHONPATH="$GITHUB_WORKSPACE/.packagingonlinux" python -m packagingonlinux --version
+
+    - uses: actions/download-artifact@v8
+      if: inputs.download != ''
+      with:
+        pattern: ${{ inputs.download }}
+        path: ${{ inputs.download-path }}
+        merge-multiple: true
+
+    # Artifacts lose the executable bit: a tar keeps it. Each .tar at the top of the
+    # download path is extracted there, then deleted.
+    - name: Extract the downloaded .tar files
+      if: inputs.download != ''
+      shell: bash
+      env:
+        DEST: ${{ inputs.download-path }}
+      run: |
+        shopt -s nullglob
+        for archive in "$DEST"/*.tar; do
+          echo "extract $archive"
+          tar -C "$DEST" -xf "$archive"
+          rm "$archive"
+        done
+        ls -la "$DEST"

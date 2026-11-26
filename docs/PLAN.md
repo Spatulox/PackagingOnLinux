@@ -5,7 +5,7 @@
 - [x] 1. Socle : config, staging, core, CLI, backend tar.gz, tests
 - [x] 2. deb + rpm (sans sudo, détection des dépendances)
 - [x] 3. Interface graphique Qt (PySide6 ou PyQt6)
-- [ ] 4. CI GitHub / GitLab
+- [ ] 4. CI GitHub / GitLab (GitHub fait : workflow réutilisable `package.yml@v0`, pour release-kit ; reste GitLab)
 - [x] 5. AppImage, puis Flatpak, puis Snap
 - [ ] 6. Construction en conteneur (`--container`)
 - [ ] 7. Dogfooding : PackagingOnLinux se package lui-même (fait pour la release : deb, rpm, tar.gz, AppImage, Flatpak, Snap, zip, setup.exe ; reste la CI de l'étape 4)
@@ -60,12 +60,14 @@ packagingonlinux/            # le code de l'outil, rangé par plateforme
     recent.py                # fichiers récemment ouverts (QSettings), menu Fichier > Ouvrir un fichier récent
     release.py               # popup avant construction : type de release (fix/minor/major/aucune) + étape (finale/rc/beta/alpha, version x.y.z~rcN)
     worker.py                # QThread qui lance core.build et diffuse les logs en direct
-ci/                                       # à venir
-  github/action.yml          # action composite réutilisable
-  github/example-workflow.yml
-  gitlab/packagingonlinux.gitlab-ci.yml   # template à inclure avec `include:`
+ci/
+  github/plan.py             # répartit les formats entre les jobs de package.yml
+  github/setup/action.yml    # étapes communes aux jobs de package.yml
+  github/example-build.yml   # build.yml d'un projet publié avec release-kit
+  gitlab/packagingonlinux.gitlab-ci.yml   # à venir : template à inclure avec `include:`
 packaging.toml               # PackagingOnLinux se package lui-même (config de référence)
 selfpack/                    # fichiers dont packaging.toml a besoin : icônes, lanceurs, générateur .ico
+.github/workflows/package.yml  # workflow réutilisable : paquets d'un packaging.toml -> artifacts release-*
 .github/workflows/release.yml  # tag vX.Y.Z -> GitHub release avec tous les paquets
 docs/                        # ce plan + la checklist deb d'origine
 tests/                       # pytest + pytest-qt, app fixture "hello" (script shell + icône)

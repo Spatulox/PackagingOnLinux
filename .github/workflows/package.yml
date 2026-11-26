@@ -1,0 +1,180 @@
+# Reusable workflow: builds the packages described by a project's packaging.toml and
+# uploads them as artifacts. Made to be the build step of a release-kit release
+# (https://github.com/Spatulox/release-kit): the artifact names start with "release-", so
+# release-kit attaches the packages to the GitHub release.
+#
+#   jobs:
+#     packages:
+#       uses: Spatulox/PackagingOnLinux/.github/workflows/package.yml@v0
+#       with:
+#         version: ${{ inputs.debversion }}   # 1.2.0~beta, from release-kit's tag.yml
+#
+# packaging.toml is the only description of the build: the [linux] / [windows] command
+# (which may call a script of the project) runs first, then every format is built.
+# What has to be built on another OS (a Windows .exe made on a Windows runner...) comes
+# from artifacts of earlier jobs, with `download`.
+#
+# Jobs: "packages" builds every format but snap on one runner (the build command runs once);
+# "snap" builds the snap as root on the Ubuntu release of [snap] base.
+name: PackagingOnLinux
+
+on:
+  workflow_call:
+    inputs:
+      config:
+        description: Path of packaging.toml in the repository (or in the downloaded artifacts).
+        type: string
+        default: packaging.toml
+      formats:
+        description: Comma-separated formats to build. Empty = [output] formats of the config.
+        type: string
+        default: ""
+      version:
+        description: Version of the packages, replacing [app] version (e.g. release-kit's debversion). Empty = the config's.
+        type: string
+        default: ""
+      artifact-name:
+        description: Name of the uploaded artifact; the snap goes in "<name>-snap".
+        type: string
+        default: release-packages
+      download:
+        description: Artifacts of earlier jobs to download before building (name or glob). A .tar at their top is extracted (artifacts lose the executable bit).
+        type: string
+        default: ""
+      download-path:
+        description: Where to download them, relative to the repository.
+        type: string
+        default: .
+      runs-on:
+        description: Runner of the "packages" job (the snap job uses the Ubuntu release of [snap] base).
+        type: string
+        default: ubuntu-24.04
+      packagingonlinux-ref:
+        description: PackagingOnLinux version (git ref) to build with.
+        type: string
+        default: v0
+    outputs:
+      version:
+        description: Version of the built packages.
+        value: ${{ jobs.plan.outputs.version }}
+
+permissions:
+  contents: read
+
+env:
+  CONFIG: ${{ inputs.config }}
+  # Not hidden: upload-artifact skips hidden files.
+  OUT: packagingonlinux-dist
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      formats: ${{ steps.plan.outputs.formats }}
+      apt: ${{ steps.plan.outputs.apt }}
+      snap: ${{ steps.plan.outputs.snap }}
+      snap-runner: ${{ steps.plan.outputs.snap-runner }}
+      version: ${{ steps.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: Spatulox/PackagingOnLinux
+          ref: ${{ inputs.packagingonlinux-ref }}
+          path: .packagingonlinux
+      - uses: ./.packagingonlinux/ci/github/setup
+        with:
+          download: ${{ inputs.download }}
+          download-path: ${{ inputs.download-path }}
+      - id: plan
+        env:
+          FORMATS: ${{ inputs.formats }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          python .packagingonlinux/ci/github/plan.py "$CONFIG" "$FORMATS" "$VERSION" > plan.txt
+          cat plan.txt
+          cat plan.txt >> "$GITHUB_OUTPUT"
+
+  packages:
+    needs: plan
+    if: needs.plan.outputs.formats != ''
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: Spatulox/PackagingOnLinux
+          ref: ${{ inputs.packagingonlinux-ref }}
+          path: .packagingonlinux
+      - uses: ./.packagingonlinux/ci/github/setup
+        with:
+          download: ${{ inputs.download }}
+          download-path: ${{ inputs.download-path }}
+      - name: Packaging tools
+        if: needs.plan.outputs.apt != ''
+        env:
+          APT: ${{ needs.plan.outputs.apt }}
+        run: |
+          sudo apt-get update
+          # shellcheck disable=SC2086 # one word per package
+          sudo apt-get install -y --no-install-recommends $APT
+      - name: Build ${{ needs.plan.outputs.formats }}
+        env:
+          FORMATS: ${{ needs.plan.outputs.formats }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: python -m packagingonlinux build -c "$CONFIG" -f "$FORMATS" --version "$VERSION" -o "$OUT"
+      - name: Summary
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          ls -l "$OUT"
+          {
+            echo "### Packages $VERSION"
+            echo
+            for f in "$OUT"/*; do echo "- \`${f##*/}\`"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ env.OUT }}/*
+          if-no-files-found: error
+
+  # snapcraft builds directly on the runner (SNAPCRAFT_BUILD_ENVIRONMENT=host), which must be
+  # the Ubuntu release of the snap base, as root.
+  snap:
+    needs: plan
+    if: needs.plan.outputs.snap == 'true'
+    runs-on: ${{ needs.plan.outputs.snap-runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: Spatulox/PackagingOnLinux
+          ref: ${{ inputs.packagingonlinux-ref }}
+          path: .packagingonlinux
+      - uses: ./.packagingonlinux/ci/github/setup
+        with:
+          download: ${{ inputs.download }}
+          download-path: ${{ inputs.download-path }}
+      - run: sudo snap install snapcraft --classic
+      - name: Build snap
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: >
+          sudo -E env "PATH=$PATH" SNAPCRAFT_BUILD_ENVIRONMENT=host
+          python -m packagingonlinux build -c "$CONFIG" -f snap --version "$VERSION" -o "$OUT"
+      - name: Summary
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          ls -l "$OUT"
+          {
+            echo "### Snap $VERSION"
+            echo
+            for f in "$OUT"/*; do echo "- \`${f##*/}\`"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.artifact-name }}-snap
+          path: ${{ env.OUT }}/*.snap
+          if-no-files-found: error
