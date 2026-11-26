@@ -3,7 +3,7 @@
 [app]
 id = "io.github.spatulox.PackagingOnLinux"
 name = "PackagingOnLinux"
-version = "0.5.0"
+version = "0.6.0"
 summary = "Package any prebuilt app for every Linux format"
 description = """
 Describe an application once, pick the formats, and get deb, rpm, tar.gz

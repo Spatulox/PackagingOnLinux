@@ -3,7 +3,7 @@
 All notable changes to PackagingOnLinux are documented here.
 A release is published only for a version that has a section in this file.
 
-## [Unreleased]
+## [0.6.0]
 
 ### Added
 - `build-args` input of the reusable workflow `package.yml`: build arguments of the `dockerfile` (e.g. `BASE=ubuntu:26.04`), so that one Dockerfile serves a matrix of distribution releases. The image cache is kept per Dockerfile, build arguments and architecture.
