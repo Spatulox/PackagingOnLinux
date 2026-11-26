@@ -27,8 +27,9 @@ jobs:
       # config: packaging.toml        # path of the config
       # formats: deb,rpm,appimage     # default: [output] formats of the config
 
-  # One .deb per Ubuntu release and architecture: the Dockerfile takes the release as an
-  # argument (ARG UBUNTU=24.04 / FROM ubuntu:${UBUNTU}) or the image is given directly.
+  # One .deb per Ubuntu release and architecture: the image is given directly, or the
+  # Dockerfile takes its base as an argument (ARG BASE=ubuntu:24.04 / FROM ${BASE}) and the
+  # call passes `build-args: BASE=ubuntu:${{ matrix.ubuntu }}` with the dockerfile.
   #
   # debs:
   #   strategy:

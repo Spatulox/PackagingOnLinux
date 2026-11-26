@@ -191,6 +191,7 @@ Without `dockerfile` or `image`, the build runs on the Ubuntu runner itself (eno
 | `version` | `[app] version` | Version of the packages |
 | `artifact-name` | `release-packages` | Name of the uploaded artifact (the snap goes in `<name>-snap`) |
 | `dockerfile` | none | Dockerfile of the build environment, in the repository (context: the repository root) |
+| `build-args` | none | Build arguments of the `dockerfile`, one `NAME=value` per line (e.g. `BASE=ubuntu:26.04`) |
 | `image` | none | Public image of the build environment instead (e.g. `ubuntu:26.04`, `fedora:latest`) |
 | `download`, `download-path` | none, `.` | Artifacts of earlier jobs to download first, e.g. a Windows `.exe` built on a Windows runner. A `.tar` at their top is extracted (artifacts lose the executable bit) |
 | `runs-on` | `ubuntu-24.04` | Runner of the main job (e.g. `ubuntu-22.04` for an older glibc) |

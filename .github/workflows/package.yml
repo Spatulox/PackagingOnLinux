@@ -53,6 +53,10 @@ on:
         description: Dockerfile of the build environment, in the repository (built with the repository root as context). Its base must have apt-get or dnf.
         type: string
         default: ""
+      build-args:
+        description: Build arguments of the dockerfile, one NAME=value per line (e.g. BASE=ubuntu:26.04 for a matrix over distribution releases).
+        type: string
+        default: ""
       image:
         description: Public image of the build environment (e.g. ubuntu:26.04, fedora:latest), instead of a dockerfile. It must have apt-get or dnf.
         type: string
@@ -150,6 +154,16 @@ jobs:
         if: inputs.dockerfile != ''
         with:
           use: false
+      # One cache per Dockerfile, build arguments and architecture.
+      - name: Cache key of the image
+        id: cache
+        if: inputs.dockerfile != ''
+        env:
+          DOCKERFILE: ${{ inputs.dockerfile }}
+          BUILD_ARGS: ${{ inputs.build-args }}
+        run: |
+          key="$(printf '%s\n%s\n%s' "$DOCKERFILE" "$BUILD_ARGS" "$RUNNER_ARCH" | sha256sum | cut -c1-16)"
+          echo "scope=packagingonlinux-$key" >> "$GITHUB_OUTPUT"
       - name: Build image ${{ inputs.dockerfile }}
         if: inputs.dockerfile != ''
         uses: docker/build-push-action@v7
@@ -157,10 +171,11 @@ jobs:
           builder: ${{ steps.buildx.outputs.name }}
           context: .
           file: ${{ inputs.dockerfile }}
+          build-args: ${{ inputs.build-args }}
           tags: pol-user
           load: true
-          cache-from: type=gha,scope=packagingonlinux-${{ inputs.dockerfile }}
-          cache-to: type=gha,mode=max,scope=packagingonlinux-${{ inputs.dockerfile }}
+          cache-from: type=gha,scope=${{ steps.cache.outputs.scope }}
+          cache-to: type=gha,mode=max,scope=${{ steps.cache.outputs.scope }}
       - name: Pull image ${{ inputs.image }}
         if: inputs.image != ''
         env:
