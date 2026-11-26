@@ -170,6 +170,9 @@ ENVIRONMENT = [
     ("PACKAGINGONLINUX_APPIMAGE_RUNTIME",
      "path to an AppImage type2 runtime to use instead of downloading the pinned release"),
     ("XDG_CACHE_HOME", "where the downloaded AppImage runtime is cached (default: ~/.cache)"),
+    ("PACKAGINGONLINUX_NO_SHELL_ENV",
+     "if set, the GUI does not load the environment of the user's login shell ($SHELL -ilc) "
+     "when it is not started from a terminal"),
 ]
 
 FILES = [

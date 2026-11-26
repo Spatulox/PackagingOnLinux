@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 
-from packagingonlinux import __version__, config
+from packagingonlinux import __version__, config, runner
 from packagingonlinux.core import BACKENDS
 from packagingonlinux.config import ConfigError
 from packagingonlinux.gui.form import AppForm, PathField
@@ -29,6 +30,8 @@ class MainWindow(QMainWindow):
         self.config_path: Path | None = None
         self.worker: BuildWorker | None = None
         self.recent = RecentFiles(default_settings())
+        # Why the login shell's environment could not be loaded, repeated in each build log.
+        self.env_warning: str | None = None
         self.resize(820, 900)
 
         self.form = AppForm()
@@ -206,6 +209,8 @@ class MainWindow(QMainWindow):
                 notes.append(f"⚠ {name} ignoré : rien à empaqueter pour {platform} (onglet {platform.capitalize()} vide)")
             else:
                 formats.append(name)
+        if self.env_warning:
+            notes.insert(0, f"⚠ {self.env_warning}")
         if not formats:
             QMessageBox.warning(self, "Aucun format", "Cochez au moins un format disponible sur cette machine, "
                                 "pour une plateforme dont les fichiers sont indiqués.")
@@ -296,11 +301,30 @@ def identify_app(app: QApplication) -> None:
         app.setWindowIcon(icon)
 
 
+def load_shell_env() -> str | None:
+    """Started from the desktop menu, the app lacks what the user's shell startup files add
+    to PATH (e.g. ~/go/bin for wails), so build commands would not be found: take the login
+    shell's environment. From a Flatpak, host commands never get the terminal's environment,
+    so it is always loaded. Returns why it failed, if it did."""
+    if os.environ.get("PACKAGINGONLINUX_NO_SHELL_ENV"):
+        return None
+    if not runner.in_flatpak() and runner.started_from_terminal():
+        return None
+    try:
+        runner.load_login_env()
+    except runner.CommandError as e:
+        print(f"packagingonlinux: login shell environment not loaded: {e}", file=sys.stderr)
+        return f"Environnement du shell non chargé ({e}) : les commandes de construction n'ont que le PATH de la session."
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     app = QApplication.instance() or QApplication([sys.argv[0]])
     identify_app(app)
+    env_warning = load_shell_env()  # before the window checks which tools are installed
     window = MainWindow(Path(argv[0]) if argv else None)
+    window.env_warning = env_warning
     window.show()
     return app.exec()
 

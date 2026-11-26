@@ -407,3 +407,31 @@ def test_ask_release_real_dialog(qtbot, accept, expected):
 
     QTimer.singleShot(0, answer)
     assert release_module.ask_release(None, "1.2.3") == expected
+
+
+def test_shell_env_loaded_only_outside_a_terminal(monkeypatch):
+    loads = []
+    monkeypatch.setattr(app.runner, "load_login_env", lambda: loads.append(1))
+    monkeypatch.setattr(app.runner, "in_flatpak", lambda: False)
+    monkeypatch.delenv("PACKAGINGONLINUX_NO_SHELL_ENV", raising=False)
+    monkeypatch.setattr(app.runner, "started_from_terminal", lambda: True)
+    assert app.load_shell_env() is None and loads == []
+    monkeypatch.setattr(app.runner, "started_from_terminal", lambda: False)
+    assert app.load_shell_env() is None and loads == [1]
+    monkeypatch.setenv("PACKAGINGONLINUX_NO_SHELL_ENV", "1")
+    assert app.load_shell_env() is None and loads == [1]
+
+
+def test_shell_env_failure_is_noted_in_build_log(window, qtbot, dialogs, monkeypatch):
+    def fail():
+        raise app.runner.CommandError("/bin/zsh took more than 10s to start")
+
+    monkeypatch.setattr(app.runner, "load_login_env", fail)
+    monkeypatch.setattr(app.runner, "in_flatpak", lambda: False)
+    monkeypatch.setattr(app.runner, "started_from_terminal", lambda: False)
+    monkeypatch.delenv("PACKAGINGONLINUX_NO_SHELL_ENV", raising=False)
+    window.env_warning = app.load_shell_env()
+    assert "took more than 10s" in window.env_warning
+    window.start_build()
+    assert window.log.toPlainText().startswith("⚠ Environnement du shell non chargé")
+    qtbot.waitUntil(lambda: window.worker is None, timeout=60000)

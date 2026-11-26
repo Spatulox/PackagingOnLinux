@@ -3,6 +3,11 @@
 All notable changes to PackagingOnLinux are documented here.
 A release is published only for a version that has a section in this file.
 
+## [Unreleased]
+
+### Fixed
+- Started from the desktop menu, the GUI did not find build tools that only the user's shell startup files add to `PATH` (e.g. `wails` in `~/go/bin`, `npm` from nvm): build commands failed with exit 127. It now loads the environment of the login shell (`$SHELL -ilc`) at startup when it is not run from a terminal, and always from the Flatpak (for the commands it runs on the host). `PACKAGINGONLINUX_NO_SHELL_ENV=1` turns this off.
+
 ## [0.3.1]
 
 ### Added

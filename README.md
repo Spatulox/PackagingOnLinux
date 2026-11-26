@@ -57,6 +57,8 @@ packagingonlinux-gui [packaging.toml]   # or: packagingonlinux gui
 
 Fill in the form, choose the binary and the icon (in the Linux tab, and in the Windows tab for Windows formats), tick the formats, then click « Construire les paquets ». Formats whose tools are missing on the machine are greyed out; hover them to see the command that installs the missing tools. The interface is in French.
 
+Started from the desktop menu rather than a terminal, the GUI first loads the environment of your login shell (`$SHELL -ilc`, so `~/.profile`, `~/.bashrc`, `~/.zshrc`...), like code editors do: build commands then find the tools that only your shell startup files put in `PATH` (e.g. `~/go/bin/wails`, or `npm` from nvm). If that fails, the build log says so. Set `PACKAGINGONLINUX_NO_SHELL_ENV=1` to turn it off.
+
 ### Command line
 
 ```bash
