@@ -154,7 +154,7 @@ The installer is not signed, so on first launch Windows SmartScreen warns that t
 
 ## CI (GitHub Actions)
 
-Other repositories build their packages with the reusable workflow `.github/workflows/package.yml`. It runs only what `packaging.toml` describes: the `[linux]` / `[windows]` command (which may call a script of the project), then every format, with the needed tools installed on the runner. The packages are uploaded as artifacts named `release-packages` (and `release-packages-snap`), ready for [release-kit](https://github.com/Spatulox/release-kit) to attach to a GitHub release:
+Other repositories build their packages with the reusable workflow `.github/workflows/package.yml`. It runs only what `packaging.toml` describes: the `[linux]` / `[windows]` command (which may call a script of the project), then every format, with the needed packaging tools installed. The packages are uploaded as artifacts named `release-packages` (and `release-packages-snap`), ready for [release-kit](https://github.com/Spatulox/release-kit) to attach to a GitHub release:
 
 ```yaml
 # .github/workflows/build.yml, called by release-kit's release.yml with the decoded tag
@@ -170,7 +170,19 @@ jobs:
     uses: Spatulox/PackagingOnLinux/.github/workflows/package.yml@v0
     with:
       version: ${{ inputs.debversion }}   # 1.2.0~beta for the tag v1.2.0_beta
+      dockerfile: .github/build.Dockerfile
 ```
+
+Whatever the language, the build command's toolchain comes from a **build image** the project describes: a `dockerfile` (built by the workflow, cached between runs) or a public `image`. The workflow adds Python and the packaging tools on top of it (with `apt-get` or `dnf`, so the image must be based on Debian, Ubuntu, Fedora or RHEL), then runs the whole build in it. The packages' dependencies are those of that image's distribution. For example, a Wails app:
+
+```dockerfile
+FROM ubuntu:24.04
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      golang-go nodejs npm build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+RUN GOBIN=/usr/local/bin go install github.com/wailsapp/wails/v2/cmd/wails@v2.10.1
+```
+
+Without `dockerfile` or `image`, the build runs on the Ubuntu runner itself (enough for an app that needs nothing more, or that is already built by an earlier job and downloaded).
 
 | Input | Default | |
 |---|---|---|
@@ -178,11 +190,13 @@ jobs:
 | `formats` | `[output] formats` | Comma-separated formats to build |
 | `version` | `[app] version` | Version of the packages |
 | `artifact-name` | `release-packages` | Name of the uploaded artifact (the snap goes in `<name>-snap`) |
+| `dockerfile` | none | Dockerfile of the build environment, in the repository (context: the repository root) |
+| `image` | none | Public image of the build environment instead (e.g. `ubuntu:26.04`, `fedora:latest`) |
 | `download`, `download-path` | none, `.` | Artifacts of earlier jobs to download first, e.g. a Windows `.exe` built on a Windows runner. A `.tar` at their top is extracted (artifacts lose the executable bit) |
 | `runs-on` | `ubuntu-24.04` | Runner of the main job (e.g. `ubuntu-22.04` for an older glibc) |
 | `packagingonlinux-ref` | `v0` | PackagingOnLinux version |
 
-Every format but snap is built in one job (rpm with Ubuntu's `rpmbuild`), so the build command runs once; the snap is built in a second job, as root, on the Ubuntu release of `[snap] base`. `v0` follows the latest stable 0.x release. [`ci/github/example-build.yml`](ci/github/example-build.yml) is a complete example, and this repository's own `.github/workflows/build.yml` uses it to release PackagingOnLinux.
+Every format but snap is built in one job, so the build command runs once; the snap is built in a second job, as root, on the Ubuntu release of `[snap] base`, and can't be built with a build image (snapcraft doesn't run in Docker). A matrix of calls builds one package per distribution release or per architecture (`image: ubuntu:${{ matrix.ubuntu }}`, `runs-on: ubuntu-24.04-arm`, a distinct `artifact-name` each). `v0` follows the latest stable 0.x release. [`ci/github/example-build.yml`](ci/github/example-build.yml) is a complete example, and this repository's own `.github/workflows/build.yml` uses it to release PackagingOnLinux.
 
 ## Development
 

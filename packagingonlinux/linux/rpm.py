@@ -63,6 +63,7 @@ class RpmBackend(Backend):
     required_tools = ("rpmbuild",)
     install_hint = "dnf install rpm-build  |  apt install rpm  (or build in a fedora container)"
     apt_packages = ("rpm",)
+    dnf_packages = ("rpm-build",)
 
     def build(self, ctx: BuildContext) -> list[Path]:
         spec = ctx.spec

@@ -34,6 +34,7 @@ class DebBackend(Backend):
     required_tools = ("dpkg-deb",)
     install_hint = "apt install dpkg  (or build in a debian container)"
     apt_packages = ("dpkg-dev",)
+    dnf_packages = ("dpkg", "dpkg-dev")
 
     def build(self, ctx: BuildContext) -> list[Path]:
         spec = ctx.spec

@@ -11,11 +11,15 @@
 #
 # packaging.toml is the only description of the build: the [linux] / [windows] command
 # (which may call a script of the project) runs first, then every format is built.
+# The toolchain that command needs (compilers, SDKs, -dev libraries...), whatever the
+# language, comes from the project's build image: `dockerfile` (built here, cached) or
+# `image`. The packaging tools are added on top of it, and the whole build runs in it.
+# Without either, the build runs on the Ubuntu runner itself.
 # What has to be built on another OS (a Windows .exe made on a Windows runner...) comes
 # from artifacts of earlier jobs, with `download`.
 #
 # Jobs: "packages" builds every format but snap on one runner (the build command runs once);
-# "snap" builds the snap as root on the Ubuntu release of [snap] base.
+# "snap" builds the snap as root on the Ubuntu release of [snap] base (not with a build image).
 name: PackagingOnLinux
 
 on:
@@ -45,6 +49,14 @@ on:
         description: Where to download them, relative to the repository.
         type: string
         default: .
+      dockerfile:
+        description: Dockerfile of the build environment, in the repository (built with the repository root as context). Its base must have apt-get or dnf.
+        type: string
+        default: ""
+      image:
+        description: Public image of the build environment (e.g. ubuntu:26.04, fedora:latest), instead of a dockerfile. It must have apt-get or dnf.
+        type: string
+        default: ""
       runs-on:
         description: Runner of the "packages" job (the snap job uses the Ubuntu release of [snap] base).
         type: string
@@ -63,6 +75,7 @@ permissions:
 
 env:
   CONFIG: ${{ inputs.config }}
+  CONTAINER: ${{ inputs.dockerfile != '' || inputs.image != '' }}
   # Not hidden: upload-artifact skips hidden files.
   OUT: packagingonlinux-dist
 
@@ -72,6 +85,7 @@ jobs:
     outputs:
       formats: ${{ steps.plan.outputs.formats }}
       apt: ${{ steps.plan.outputs.apt }}
+      dnf: ${{ steps.plan.outputs.dnf }}
       snap: ${{ steps.plan.outputs.snap }}
       snap-runner: ${{ steps.plan.outputs.snap-runner }}
       version: ${{ steps.plan.outputs.version }}
@@ -90,8 +104,13 @@ jobs:
         env:
           FORMATS: ${{ inputs.formats }}
           VERSION: ${{ inputs.version }}
+          BOTH: ${{ inputs.dockerfile != '' && inputs.image != '' }}
         run: |
-          python .packagingonlinux/ci/github/plan.py "$CONFIG" "$FORMATS" "$VERSION" > plan.txt
+          if [ "$BOTH" = true ]; then
+            echo "::error::Set dockerfile or image, not both"
+            exit 1
+          fi
+          python .packagingonlinux/ci/github/plan.py "$CONFIG" "$FORMATS" "$VERSION" "$CONTAINER" > plan.txt
           cat plan.txt
           cat plan.txt >> "$GITHUB_OUTPUT"
 
@@ -110,19 +129,79 @@ jobs:
         with:
           download: ${{ inputs.download }}
           download-path: ${{ inputs.download-path }}
+
+      # --- On the runner ---
       - name: Packaging tools
-        if: needs.plan.outputs.apt != ''
+        if: env.CONTAINER != 'true'
         env:
           APT: ${{ needs.plan.outputs.apt }}
-        run: |
-          sudo apt-get update
-          # shellcheck disable=SC2086 # one word per package
-          sudo apt-get install -y --no-install-recommends $APT
+        run: sh .packagingonlinux/ci/github/install-tools.sh "$APT" ""
       - name: Build ${{ needs.plan.outputs.formats }}
+        if: env.CONTAINER != 'true'
         env:
           FORMATS: ${{ needs.plan.outputs.formats }}
           VERSION: ${{ needs.plan.outputs.version }}
         run: python -m packagingonlinux build -c "$CONFIG" -f "$FORMATS" --version "$VERSION" -o "$OUT"
+
+      # --- In the project's build image ---
+      # Not the current builder: `docker build` below must see the loaded image locally.
+      - uses: docker/setup-buildx-action@v4
+        id: buildx
+        if: inputs.dockerfile != ''
+        with:
+          use: false
+      - name: Build image ${{ inputs.dockerfile }}
+        if: inputs.dockerfile != ''
+        uses: docker/build-push-action@v7
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: .
+          file: ${{ inputs.dockerfile }}
+          tags: pol-user
+          load: true
+          cache-from: type=gha,scope=packagingonlinux-${{ inputs.dockerfile }}
+          cache-to: type=gha,mode=max,scope=packagingonlinux-${{ inputs.dockerfile }}
+      - name: Pull image ${{ inputs.image }}
+        if: inputs.image != ''
+        env:
+          IMAGE: ${{ inputs.image }}
+        run: docker pull "$IMAGE" && docker tag "$IMAGE" pol-user
+      - name: Add the packaging tools to the image
+        if: env.CONTAINER == 'true'
+        env:
+          APT: ${{ needs.plan.outputs.apt }}
+          DNF: ${{ needs.plan.outputs.dnf }}
+        run: |
+          layer="$RUNNER_TEMP/packagingonlinux-tools"
+          mkdir -p "$layer"
+          cp .packagingonlinux/ci/github/install-tools.sh "$layer/"
+          cat > "$layer/Dockerfile" <<'EOF'
+          FROM pol-user
+          USER root
+          ARG APT
+          ARG DNF
+          COPY install-tools.sh /tmp/install-tools.sh
+          RUN CHECK_PYTHON=1 sh /tmp/install-tools.sh "$APT" "$DNF" && rm /tmp/install-tools.sh
+          EOF
+          docker build --build-arg APT --build-arg DNF -t pol-build "$layer"
+      # The repository is mounted at the same path, so that PYTHONPATH (.packagingonlinux)
+      # and the downloaded files stay valid. --privileged: flatpak-builder needs bwrap.
+      # safe.directory: the build command may use git on the repository (owned by the runner).
+      - name: Build ${{ needs.plan.outputs.formats }} in the image
+        if: env.CONTAINER == 'true'
+        env:
+          FORMATS: ${{ needs.plan.outputs.formats }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: >
+          docker run --rm --privileged
+          -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" -w "$GITHUB_WORKSPACE"
+          -e PYTHONPATH -e CI -e GITHUB_ACTIONS
+          -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0='*'
+          --entrypoint python3 pol-build
+          -m packagingonlinux build -c "$CONFIG" -f "$FORMATS" --version "$VERSION" -o "$OUT"
+      - name: Give the files created in the image back to the runner user
+        if: always() && env.CONTAINER == 'true'
+        run: sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
       - name: Summary
         env:
           VERSION: ${{ needs.plan.outputs.version }}

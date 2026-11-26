@@ -5,9 +5,10 @@
 #   tag (release-kit) -> build (this file) -> publish (release-kit)
 #
 # Everything the packages need is in the project's packaging.toml: [linux] command
-# (e.g. "./scripts/build.sh", which may install its toolchain with sudo apt-get) builds the
-# app, then every format of [output] formats is built and uploaded as "release-packages"
-# (and "release-packages-snap"), which release-kit attaches to the GitHub release.
+# (e.g. "bash scripts/build.sh") builds the app in the build image described by
+# .github/build.Dockerfile (the project's toolchain: compilers, SDKs, -dev libraries), then
+# every format of [output] formats is built and uploaded as "release-packages", which
+# release-kit attaches to the GitHub release.
 name: Build
 
 on:
@@ -22,9 +23,25 @@ jobs:
     uses: Spatulox/PackagingOnLinux/.github/workflows/package.yml@v0
     with:
       version: ${{ inputs.debversion }}
+      dockerfile: .github/build.Dockerfile   # or image: ubuntu:24.04
       # config: packaging.toml        # path of the config
       # formats: deb,rpm,appimage     # default: [output] formats of the config
-      # runs-on: ubuntu-22.04         # older glibc for the binaries built by [linux] command
+
+  # One .deb per Ubuntu release and architecture: the Dockerfile takes the release as an
+  # argument (ARG UBUNTU=24.04 / FROM ubuntu:${UBUNTU}) or the image is given directly.
+  #
+  # debs:
+  #   strategy:
+  #     matrix:
+  #       ubuntu: ["24.04", "26.04"]
+  #       runner: [ubuntu-24.04, ubuntu-24.04-arm]
+  #   uses: Spatulox/PackagingOnLinux/.github/workflows/package.yml@v0
+  #   with:
+  #     version: ${{ inputs.debversion }}+ubuntu${{ matrix.ubuntu }}
+  #     image: ubuntu:${{ matrix.ubuntu }}
+  #     runs-on: ${{ matrix.runner }}
+  #     formats: deb
+  #     artifact-name: release-deb-${{ matrix.ubuntu }}-${{ matrix.runner }}
 
   # When the Windows .exe must be built on Windows, build it in a job of its own and let
   # package.yml download it where [windows] binary / dir points:
@@ -44,5 +61,6 @@ jobs:
   #   uses: Spatulox/PackagingOnLinux/.github/workflows/package.yml@v0
   #   with:
   #     version: ${{ inputs.debversion }}
+  #     dockerfile: .github/build.Dockerfile
   #     download: windows-app
   #     download-path: build/windows

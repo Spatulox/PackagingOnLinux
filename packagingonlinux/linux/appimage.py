@@ -127,6 +127,7 @@ class AppImageBackend(Backend):
     required_tools = ("mksquashfs",)
     install_hint = "apt install squashfs-tools  |  dnf install squashfs-tools"
     apt_packages = ("squashfs-tools",)
+    dnf_packages = ("squashfs-tools",)
 
     def build(self, ctx: BuildContext) -> list[Path]:
         spec = ctx.spec

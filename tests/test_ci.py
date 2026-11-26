@@ -25,7 +25,8 @@ plan_module = _plan_module()
 
 def test_formats_from_the_config(hello_project):
     assert plan_module.plan(hello_project) == {
-        "formats": "deb,tarball", "apt": "dpkg-dev", "snap": "false", "snap-runner": "", "version": "1.2.3",
+        "formats": "deb,tarball", "apt": "dpkg-dev", "dnf": "dpkg dpkg-dev", "snap": "false", "snap-runner": "",
+        "version": "1.2.3",
     }
 
 
@@ -34,6 +35,7 @@ def test_snap_gets_its_own_job_on_the_runner_of_its_base(hello_project):
     result = plan_module.plan(hello_project, "snap,flatpak,deb, rpm", "2.0.0~rc")
     assert result["formats"] == "flatpak,deb,rpm"
     assert result["apt"] == "flatpak flatpak-builder librsvg2-common dpkg-dev rpm"
+    assert result["dnf"] == "flatpak flatpak-builder librsvg2 dpkg dpkg-dev rpm-build"
     assert (result["snap"], result["snap-runner"], result["version"]) == ("true", "ubuntu-22.04", "2.0.0~rc")
 
 
@@ -57,8 +59,16 @@ def test_main_prints_github_outputs(hello_project, capsys):
     assert plan_module.main([str(hello_project), "nope"]) == 2
 
 
+def test_snap_cannot_use_a_build_image(hello_project, capsys):
+    with pytest.raises(ConfigError, match="snap"):
+        plan_module.plan(hello_project, "deb,snap", "", True)
+    assert plan_module.plan(hello_project, "deb", "", True)["formats"] == "deb"
+    assert plan_module.main([str(hello_project), "snap", "", "true"]) == 2
+    assert plan_module.main([str(hello_project), "snap", "", "false"]) == 0
+
+
 def test_every_backend_with_tools_says_how_ci_installs_them():
-    # A new backend must list its Ubuntu packages, or package.yml can't build it.
+    # A new backend must list its Ubuntu and Fedora packages, or package.yml can't build it.
     for name, backend in BACKENDS.items():
         if backend.required_tools and name not in plan_module.SEPARATE:
-            assert backend.apt_packages, name
+            assert backend.apt_packages and backend.dnf_packages, name
