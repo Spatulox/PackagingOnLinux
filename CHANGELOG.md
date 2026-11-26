@@ -3,11 +3,19 @@
 All notable changes to PackagingOnLinux are documented here.
 A release is published only for a version that has a section in this file.
 
+## [0.5.0]
+
+### Added
+- Build images in the reusable workflow `package.yml`: with the `dockerfile` input (built by the workflow, cached between runs) or the `image` input, the build command runs in the project's own build environment, whatever its language and toolchain. The workflow adds Python and the packaging tools on top of it with `apt-get` or `dnf`, so the image must be based on Debian, Ubuntu, Fedora or RHEL. A matrix of calls builds one package per distribution release or architecture. The snap can't use a build image.
+
+### Changed
+- The PackagingOnLinux rpm is built on Fedora again (`image: fedora:latest`).
+
 ## [0.4.0]
 
 ### Added
 - `--version VERSION` option of `build` and `check`: replaces `[app] version` (and `$APP_VERSION` of the build command) without editing packaging.toml, e.g. with the version of a release tag in CI.
-- Reusable GitHub workflow `.github/workflows/package.yml`: other repositories build the packages of their packaging.toml with `uses: Spatulox/PackagingOnLinux/.github/workflows/package.yml@v0` and get them as `release-*` artifacts, ready for release-kit. It installs the tools of the requested formats, builds every format but snap on one runner and the snap on the Ubuntu release of `[snap] base`. The build command runs in the project's build image (`dockerfile` or `image` input, based on Debian, Ubuntu, Fedora or RHEL), whatever its language and toolchain. The `v0` tag follows the latest stable release.
+- Reusable GitHub workflow `.github/workflows/package.yml`: other repositories build the packages of their packaging.toml with `uses: Spatulox/PackagingOnLinux/.github/workflows/package.yml@v0` and get them as `release-*` artifacts, ready for release-kit. It installs the tools of the requested formats, builds every format but snap on one runner and the snap on the Ubuntu release of `[snap] base`. The `v0` tag follows the latest stable release.
 
 ### Fixed
 - Started from the desktop menu, the GUI did not find build tools that only the user's shell startup files add to `PATH` (e.g. `wails` in `~/go/bin`, `npm` from nvm): build commands failed with exit 127. It now loads the environment of the login shell (`$SHELL -ilc`) at startup when it is not run from a terminal, and always from the Flatpak (for the commands it runs on the host). `PACKAGINGONLINUX_NO_SHELL_ENV=1` turns this off.
