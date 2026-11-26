@@ -1,0 +1,48 @@
+# Example .github/workflows/build.yml of a project released with release-kit
+# (https://github.com/Spatulox/release-kit) and packaged by PackagingOnLinux.
+#
+# The project's release.yml is release-kit's example, unchanged:
+#   tag (release-kit) -> build (this file) -> publish (release-kit)
+#
+# Everything the packages need is in the project's packaging.toml: [linux] command
+# (e.g. "./scripts/build.sh", which may install its toolchain with sudo apt-get) builds the
+# app, then every format of [output] formats is built and uploaded as "release-packages"
+# (and "release-packages-snap"), which release-kit attaches to the GitHub release.
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      debversion:   # 1.2.0~beta (1.2.0+dev.42.gabc1234 for a dry run)
+        type: string
+        required: true
+
+jobs:
+  packages:
+    uses: Spatulox/PackagingOnLinux/.github/workflows/package.yml@v0
+    with:
+      version: ${{ inputs.debversion }}
+      # config: packaging.toml        # path of the config
+      # formats: deb,rpm,appimage     # default: [output] formats of the config
+      # runs-on: ubuntu-22.04         # older glibc for the binaries built by [linux] command
+
+  # When the Windows .exe must be built on Windows, build it in a job of its own and let
+  # package.yml download it where [windows] binary / dir points:
+  #
+  # windows-app:
+  #   runs-on: windows-latest
+  #   steps:
+  #     - uses: actions/checkout@v7
+  #     - run: ./scripts/build-windows.ps1          # -> build/windows/MyApp.exe
+  #     - uses: actions/upload-artifact@v7
+  #       with:
+  #         name: windows-app
+  #         path: build/windows/
+  #
+  # packages:
+  #   needs: windows-app
+  #   uses: Spatulox/PackagingOnLinux/.github/workflows/package.yml@v0
+  #   with:
+  #     version: ${{ inputs.debversion }}
+  #     download: windows-app
+  #     download-path: build/windows

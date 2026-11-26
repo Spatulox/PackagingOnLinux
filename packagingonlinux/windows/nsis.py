@@ -234,6 +234,7 @@ class NsisBackend(Backend):
     platform = "windows"
     required_tools = ("makensis",)
     install_hint = "apt install nsis  |  dnf install mingw32-nsis  |  pacman -S nsis (AUR)"
+    apt_packages = ("nsis",)
 
     def build(self, ctx: BuildContext) -> list[Path]:
         spec = ctx.spec

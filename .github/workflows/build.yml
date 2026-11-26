@@ -1,0 +1,146 @@
+# Builds every package of PackagingOnLinux, called by release.yml once release-kit has
+# decoded the tag: deb, rpm, tar.gz, AppImage, Flatpak, Snap, Windows installer (setup.exe)
+# and Windows portable zip, in artifacts named "release-*" that release-kit publishes.
+#
+# The packages themselves are built by the reusable workflow package.yml of this repository,
+# at this very commit: this file is also the reference example of its use.
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      debversion:   # 1.2.0~beta, or 1.2.0+dev.42.gabc1234 for a dry run
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libegl1 libxkbcommon0 libfontconfig1 desktop-file-utils nsis
+      - run: pip install -e '.[gui,test]'
+      - run: pytest
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+  # A Python + Qt app can't be frozen into an .exe from Linux: PyInstaller runs here and
+  # the resulting folder ([windows] dir in packaging.toml) is packaged on Linux.
+  windows-app:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ inputs.debversion }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install PySide6 pyinstaller
+      - name: Set the version from the tag
+        run: sed -i "s/^__version__ = .*/__version__ = \"$VERSION\"/" packagingonlinux/__init__.py
+      - name: Freeze with PyInstaller
+        run: >
+          pyinstaller --noconfirm --windowed --name PackagingOnLinux
+          --icon selfpack/packagingonlinux.ico --paths . --collect-submodules packagingonlinux --exclude-module PyQt6
+          --workpath build/pyinstaller --distpath build/windows
+          selfpack/frozen_launcher.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-app
+          path: build/windows/
+          if-no-files-found: error
+          retention-days: 1
+
+  # The AppImage, Flatpak and Snap can't use the system's Python and PyQt6 like the deb:
+  # they package this bundle (Python and Qt included), with build/packaging-bundled.toml.
+  # It is built on the oldest runner, so that it runs with older glibc versions too.
+  linux-app:
+    runs-on: ubuntu-22.04
+    env:
+      VERSION: ${{ inputs.debversion }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install PySide6-Essentials pyinstaller
+      - name: Set the version from the tag
+        run: sed -i "s/^__version__ = .*/__version__ = \"$VERSION\"/" packagingonlinux/__init__.py
+      - name: Freeze with PyInstaller
+        run: >
+          pyinstaller --noconfirm --name packagingonlinux
+          --paths . --collect-submodules packagingonlinux --exclude-module PyQt6
+          --workpath build/pyinstaller --distpath build/linux
+          selfpack/frozen_launcher.py
+      - run: test "$(build/linux/packagingonlinux/packagingonlinux --version)" = "$VERSION"
+      - run: python selfpack/linux/bundled_config.py
+      # Artifacts drop the executable bit: package.yml extracts this tar into build/.
+      - run: tar -C build -cf linux-app.tar linux packaging-bundled.toml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-app
+          path: linux-app.tar
+          if-no-files-found: error
+          retention-days: 1
+
+  # deb, rpm, tar.gz (build/app, with the system's Python and PyQt6) and the Windows formats.
+  system:
+    needs: [test, windows-app]
+    uses: ./.github/workflows/package.yml
+    with:
+      formats: deb,rpm,tarball,zip,nsis
+      version: ${{ inputs.debversion }}
+      download: windows-app
+      download-path: build/windows
+      artifact-name: release-system
+      packagingonlinux-ref: ${{ github.sha }}
+
+  bundled:
+    needs: [test, linux-app]
+    uses: ./.github/workflows/package.yml
+    with:
+      config: build/packaging-bundled.toml
+      formats: appimage,flatpak,snap
+      version: ${{ inputs.debversion }}
+      download: linux-app
+      download-path: build
+      artifact-name: release-bundled
+      packagingonlinux-ref: ${{ github.sha }}
+
+  # The bundled packages start and report the right version.
+  smoke:
+    needs: bundled
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ inputs.debversion }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-bundled*
+          path: dist
+          merge-multiple: true
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends flatpak
+      - name: Run the AppImage
+        run: |
+          appimage=(dist/*.AppImage)
+          chmod +x "${appimage[0]}"
+          test "$("${appimage[0]}" --appimage-extract-and-run --version)" = "$VERSION"
+      - name: Install and run the Flatpak
+        run: |
+          flatpak install --user -y --noninteractive --bundle dist/*.flatpak
+          test "$(dbus-run-session -- flatpak run io.github.spatulox.PackagingOnLinux --version)" = "$VERSION"
+      - name: Install and run the snap
+        run: |
+          sudo snap install --dangerous --classic dist/*.snap
+          test "$(/snap/bin/packagingonlinux --version)" = "$VERSION"

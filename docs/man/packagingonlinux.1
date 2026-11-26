@@ -27,14 +27,17 @@ overwrite the config if it exists
 .PP
 Print the version, then one line per format: ok, or the missing tools and the command that installs them. Always exits 0.
 .SS check
-\fBpackagingonlinux check\fR [\fB\-c\fR \fIPATH\fR]
+\fBpackagingonlinux check\fR [\fB\-c\fR \fIPATH\fR] [\fB\-\-version\fR \fIVERSION\fR]
 .PP
 Report missing or invalid fields and files, then generate the Linux .desktop and AppStream metainfo files in a temporary directory and run desktop\-file\-validate and appstreamcli on them (skipped when not installed). Builds and writes nothing.
 .TP
 \fB\-c\fR, \fB\-\-config\fR \fIPATH\fR
 path to the config (default: packaging.toml in the current directory)
+.TP
+\fB\-\-version\fR \fIVERSION\fR
+use this version instead of [app] version (e.g. from a release tag); the build command gets it in $APP_VERSION
 .SS build
-\fBpackagingonlinux build\fR [\fB\-c\fR \fIPATH\fR] [\fB\-f\fR \fIFORMATS\fR] [\fB\-o\fR \fIDIR\fR]
+\fBpackagingonlinux build\fR [\fB\-c\fR \fIPATH\fR] [\fB\-f\fR \fIFORMATS\fR] [\fB\-o\fR \fIDIR\fR] [\fB\-\-version\fR \fIVERSION\fR]
 .PP
 For each platform that has a requested format, run its build command, then build every requested format into the output directory. A format that fails, or whose tools are missing, does not stop the others: failures are listed at the end and the exit status is 1.
 .TP
@@ -46,6 +49,9 @@ comma\-separated formats to build (default: [output] formats of the config)
 .TP
 \fB\-o\fR, \fB\-\-output\fR \fIDIR\fR
 output directory (default: [output] dir of the config)
+.TP
+\fB\-\-version\fR \fIVERSION\fR
+use this version instead of [app] version (e.g. from a release tag); the build command gets it in $APP_VERSION
 .SS gui
 \fBpackagingonlinux gui\fR [\fICONFIG\fR]
 .PP
@@ -137,6 +143,9 @@ Build the formats listed in [output] formats of ./packaging.toml.
 .TP
 \fBpackagingonlinux build \-f deb,rpm \-o dist\fR
 Build only the deb and rpm packages, into dist/.
+.TP
+\fBpackagingonlinux build \-\-version 1.2.0~beta\fR
+Build with the version of a release tag, whatever packaging.toml says.
 .TP
 \fBpackagingonlinux gui app/packaging.toml\fR
 Edit a config in the graphical interface.

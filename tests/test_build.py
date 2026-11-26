@@ -254,3 +254,21 @@ def test_doctor_prints_version(capsys):
     from packagingonlinux import __version__, cli
     assert cli.main(["doctor"]) == 0
     assert capsys.readouterr().out.splitlines()[0] == f"PackagingOnLinux {__version__}"
+
+
+def test_build_version_option_replaces_the_config_version(hello_project, tmp_path):
+    from packagingonlinux import cli
+    hello_project.write_text(hello_project.read_text() + '\n[build]\ncommand = "echo $APP_VERSION > seen"\n')
+    out = tmp_path / "dist"
+    assert cli.main(["build", "-c", str(hello_project), "-f", "tarball", "-o", str(out),
+                     "--version", "2.0.0~beta"]) == 0
+    names = [p.name for p in out.iterdir()]
+    assert names and all("2.0.0~beta" in n for n in names), names
+    assert (hello_project.parent / "seen").read_text().strip() == "2.0.0~beta"
+    assert 'version = "1.2.3"' in hello_project.read_text()  # the config is left untouched
+
+
+def test_build_version_option_is_validated(hello_project, capsys):
+    from packagingonlinux import cli
+    assert cli.main(["build", "-c", str(hello_project), "-f", "tarball", "--version", "v1.0-beta"]) == 2
+    assert "[app] version" in capsys.readouterr().err

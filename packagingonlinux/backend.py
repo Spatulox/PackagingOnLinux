@@ -22,6 +22,9 @@ class Backend:
     platform: str = "linux"   # which [linux]/[windows] target and staging tree it packages
     required_tools: tuple[str, ...] = ()
     install_hint: str = ""
+    # Ubuntu packages providing required_tools, installed by the CI workflow
+    # (.github/workflows/package.yml) for the requested formats.
+    apt_packages: tuple[str, ...] = ()
 
     def missing_tools(self) -> list[str]:
         return [t for t in self.required_tools if not which(t)]

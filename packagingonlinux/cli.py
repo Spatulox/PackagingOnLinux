@@ -92,8 +92,16 @@ def _check_linux(spec: config.AppSpec) -> bool:
     return failed
 
 
-def cmd_check(args: argparse.Namespace) -> int:
+def _load(args: argparse.Namespace) -> config.AppSpec:
+    """Load the config, with --version replacing its [app] version."""
     spec = config.load(Path(args.config))
+    if args.app_version:
+        spec.version = args.app_version
+    return spec
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    spec = _load(args)
     problems = spec.validate()
     for p in problems:
         print(f"error: {p}")
@@ -119,7 +127,7 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 
 def cmd_build(args: argparse.Namespace) -> int:
-    spec = config.load(Path(args.config))
+    spec = _load(args)
     if args.output:
         spec.output_dir = Path(args.output).resolve()
     formats = [f.strip() for f in args.format.split(",")] if args.format else None
@@ -155,6 +163,8 @@ EXAMPLES = [
     ("packagingonlinux check -c app/packaging.toml", "validate a config without building anything"),
     ("packagingonlinux build", "build the formats listed in [output] formats of ./packaging.toml"),
     ("packagingonlinux build -f deb,rpm -o dist", "build only the deb and rpm packages, into dist/"),
+    ("packagingonlinux build --version 1.2.0~beta", "build with the version of a release tag, "
+     "whatever packaging.toml says"),
     ("packagingonlinux gui app/packaging.toml", "edit a config in the graphical interface"),
 ]
 
@@ -227,6 +237,12 @@ def build_parser() -> argparse.ArgumentParser:
                        help="path to the config (default: packaging.toml in the current directory)")
         return p
 
+    def with_version(p: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        p.add_argument("--version", dest="app_version", metavar="VERSION",
+                       help="use this version instead of [app] version (e.g. from a release tag); "
+                            "the build command gets it in $APP_VERSION")
+        return p
+
     p = with_config(command(
         "init", "create a packaging.toml interactively",
         "Ask for the executable, name, id, version, maintainer, license, icon, category and "
@@ -239,12 +255,12 @@ def build_parser() -> argparse.ArgumentParser:
         "Print the version, then one line per format: ok, or the missing tools and the command "
         "that installs them. Always exits 0.").set_defaults(func=cmd_doctor)
 
-    with_config(command(
+    with_version(with_config(command(
         "check", "validate the config and generated metadata",
         "Report missing or invalid fields and files, then generate the Linux .desktop and "
         "AppStream metainfo files in a temporary directory and run desktop-file-validate and "
         "appstreamcli on them (skipped when not installed). Builds and writes nothing.",
-    )).set_defaults(func=cmd_check)
+    ))).set_defaults(func=cmd_check)
 
     p = with_config(command(
         "build", "build packages",
@@ -256,7 +272,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="comma-separated formats to build (default: [output] formats of the config)")
     p.add_argument("-o", "--output", metavar="DIR",
                    help="output directory (default: [output] dir of the config)")
-    p.set_defaults(func=cmd_build)
+    with_version(p).set_defaults(func=cmd_build)
 
     p = command(
         "gui", "open the graphical interface",

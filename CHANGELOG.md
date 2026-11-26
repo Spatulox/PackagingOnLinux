@@ -5,8 +5,15 @@ A release is published only for a version that has a section in this file.
 
 ## [Unreleased]
 
+### Added
+- `--version VERSION` option of `build` and `check`: replaces `[app] version` (and `$APP_VERSION` of the build command) without editing packaging.toml, e.g. with the version of a release tag in CI.
+- Reusable GitHub workflow `.github/workflows/package.yml`: other repositories build the packages of their packaging.toml with `uses: Spatulox/PackagingOnLinux/.github/workflows/package.yml@v0` and get them as `release-*` artifacts, ready for release-kit. It installs the tools of the requested formats, builds every format but snap on one runner and the snap on the Ubuntu release of `[snap] base`. The `v0` tag follows the latest stable release.
+
 ### Fixed
 - Started from the desktop menu, the GUI did not find build tools that only the user's shell startup files add to `PATH` (e.g. `wails` in `~/go/bin`, `npm` from nvm): build commands failed with exit 127. It now loads the environment of the login shell (`$SHELL -ilc`) at startup when it is not run from a terminal, and always from the Flatpak (for the commands it runs on the host). `PACKAGINGONLINUX_NO_SHELL_ENV=1` turns this off.
+
+### Changed
+- PackagingOnLinux is released with release-kit: tags `vX.Y.Z_alpha`, `_beta`, `_rc` publish pre-releases, and "Run workflow" in the Actions tab builds every package without publishing anything.
 
 ## [0.3.1]
 

@@ -65,8 +65,10 @@ Started from the desktop menu rather than a terminal, the GUI first loads the en
 packagingonlinux init                                  # create a packaging.toml interactively
 packagingonlinux doctor                                # which formats this machine can build
 packagingonlinux check -c packaging.toml               # validate the config and generated metadata
-packagingonlinux build -c packaging.toml [-f deb,rpm] [-o dist]
+packagingonlinux build -c packaging.toml [-f deb,rpm] [-o dist] [--version 1.2.0~beta]
 ```
+
+`--version` replaces `[app] version` without editing the file (the build command gets it in `$APP_VERSION`), e.g. to use the version of a release tag.
 
 A failing format does not stop the others; errors are listed at the end. `packagingonlinux --help` lists the formats, the tools each one needs, examples and exit statuses; the full reference is the man page, readable from the sources with `man -l docs/man/packagingonlinux.1`.
 
@@ -149,6 +151,38 @@ The architecture (x86, x64, arm64) is read from the executable. Two formats are 
 - `nsis`: an installer, `<Name>-<version>-windows-<arch>-setup.exe`, made with `makensis` (`apt install nsis`, `dnf install mingw32-nsis`). It installs for the current user into `%LOCALAPPDATA%\Programs\<Name>` without administrator rights, adds a Start menu shortcut (and a desktop one if ticked), and registers the app with its uninstaller in Windows' "Apps" settings. `setup.exe /S` installs silently.
 
 The installer is not signed, so on first launch Windows SmartScreen warns that the publisher is unknown ("More info" → "Run anyway"). Code signing needs a certificate and is not supported yet.
+
+## CI (GitHub Actions)
+
+Other repositories build their packages with the reusable workflow `.github/workflows/package.yml`. It runs only what `packaging.toml` describes: the `[linux]` / `[windows]` command (which may call a script of the project), then every format, with the needed tools installed on the runner. The packages are uploaded as artifacts named `release-packages` (and `release-packages-snap`), ready for [release-kit](https://github.com/Spatulox/release-kit) to attach to a GitHub release:
+
+```yaml
+# .github/workflows/build.yml, called by release-kit's release.yml with the decoded tag
+on:
+  workflow_call:
+    inputs:
+      debversion:
+        type: string
+        required: true
+
+jobs:
+  packages:
+    uses: Spatulox/PackagingOnLinux/.github/workflows/package.yml@v0
+    with:
+      version: ${{ inputs.debversion }}   # 1.2.0~beta for the tag v1.2.0_beta
+```
+
+| Input | Default | |
+|---|---|---|
+| `config` | `packaging.toml` | Path of the config |
+| `formats` | `[output] formats` | Comma-separated formats to build |
+| `version` | `[app] version` | Version of the packages |
+| `artifact-name` | `release-packages` | Name of the uploaded artifact (the snap goes in `<name>-snap`) |
+| `download`, `download-path` | none, `.` | Artifacts of earlier jobs to download first, e.g. a Windows `.exe` built on a Windows runner. A `.tar` at their top is extracted (artifacts lose the executable bit) |
+| `runs-on` | `ubuntu-24.04` | Runner of the main job (e.g. `ubuntu-22.04` for an older glibc) |
+| `packagingonlinux-ref` | `v0` | PackagingOnLinux version |
+
+Every format but snap is built in one job (rpm with Ubuntu's `rpmbuild`), so the build command runs once; the snap is built in a second job, as root, on the Ubuntu release of `[snap] base`. `v0` follows the latest stable 0.x release. [`ci/github/example-build.yml`](ci/github/example-build.yml) is a complete example, and this repository's own `.github/workflows/build.yml` uses it to release PackagingOnLinux.
 
 ## Development
 

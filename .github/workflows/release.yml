@@ -1,255 +1,51 @@
-# Pushing a tag vX.Y.Z tests the project, builds every package with version X.Y.Z
-# (whatever packaging.toml says) and publishes them as the GitHub release vX.Y.Z:
-# deb, rpm, tar.gz, AppImage, Flatpak, Snap, Windows installer (setup.exe) and Windows
-# portable zip.
-# The release notes are the "## [X.Y.Z]" section of CHANGELOG.md. A tag whose version
-# has no section there (or an empty one) fails at once: nothing is built or released.
+# Pushing a tag vX.Y.Z_alpha, vX.Y.Z_beta, vX.Y.Z_rc, vX.Y.Z_release (or vX.Y.Z), with
+# release-kit (https://github.com/Spatulox/release-kit):
+#   1. tag: decodes the tag, and fails at once (nothing built) when CHANGELOG.md has no
+#      section for it ("## [X.Y.Z]", "## vX.Y.Z"...),
+#   2. build.yml: tests, then builds every package with version X.Y.Z (X.Y.Z~beta...),
+#      whatever packaging.toml says,
+#   3. publish: the GitHub release, with the CHANGELOG section as notes,
+#   4. a stable release moves the v0 tag, which other repositories use to call
+#      package.yml@v0.
+# "Run workflow" in the Actions tab is a dry run: everything is built, nothing published.
 name: Release
 
 on:
   push:
-    tags: ["v*"]
+    tags: ["v*.*.*"]   # not the moving v0 tag
+  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  version:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-    steps:
-      - uses: actions/checkout@v7
-      - id: version
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          # Same rule as AppSpec.validate(): deb and rpm need a leading digit, rpm forbids "-".
-          if [[ ! "$version" =~ ^[0-9][0-9A-Za-z.+~]*$ ]]; then
-            echo "::error::Tag $GITHUB_REF_NAME is not a valid version (expected vX.Y.Z, no '-')"
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-      - name: Extract the release notes from CHANGELOG.md
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          if [ -f CHANGELOG.md ]; then
-            # The section starts at "## [X.Y.Z]", "## X.Y.Z" or "## vX.Y.Z" (an optional
-            # " - date" may follow) and ends at the next "## " heading. Blank lines at the
-            # start and end of the section are dropped.
-            awk -v v="$VERSION" '
-              /^## / {
-                if (in_section) exit
-                h = $0
-                sub(/^## +/, "", h); sub(/^\[/, "", h); sub(/^v/, "", h); sub(/[] ].*$/, "", h)
-                in_section = (h == v)
-                next
-              }
-              in_section {
-                lines[++n] = $0
-                if ($0 ~ /[^[:space:]]/) { if (!first) first = n; last = n }
-              }
-              END { if (first) for (i = first; i <= last; i++) print lines[i] }
-            ' CHANGELOG.md > release-notes.md
-          fi
-          if [ ! -s release-notes.md ]; then
-            echo "::error::No entry for $VERSION in CHANGELOG.md: add a \"## [$VERSION]\" section to release it"
-            exit 1
-          fi
-          cat release-notes.md
-      - uses: actions/upload-artifact@v7
-        with:
-          name: release-notes
-          path: release-notes.md
-          if-no-files-found: error
-          retention-days: 1
+  tag:
+    uses: Spatulox/release-kit/.github/workflows/tag.yml@v1
+    with:
+      require-changelog: true
 
-  test:
-    needs: version
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libegl1 libxkbcommon0 libfontconfig1 desktop-file-utils nsis
-      - run: pip install -e '.[gui,test]'
-      - run: pytest
-        env:
-          QT_QPA_PLATFORM: offscreen
+  build:
+    needs: tag
+    uses: ./.github/workflows/build.yml
+    with:
+      debversion: ${{ needs.tag.outputs.debversion }}
 
-  # A Python + Qt app can't be frozen into an .exe from Linux: PyInstaller runs here and
-  # the resulting folder ([windows] dir in packaging.toml) is packaged by the linux job.
-  windows-app:
-    needs: version
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-      - run: pip install PySide6 pyinstaller
-      - name: Set the version from the tag
-        run: sed -i 's/^__version__ = .*/__version__ = "${{ needs.version.outputs.version }}"/' packagingonlinux/__init__.py
-      - name: Freeze with PyInstaller
-        run: >
-          pyinstaller --noconfirm --windowed --name PackagingOnLinux
-          --icon selfpack/packagingonlinux.ico --paths . --collect-submodules packagingonlinux --exclude-module PyQt6
-          --workpath build/pyinstaller --distpath build/windows
-          selfpack/frozen_launcher.py
-      - uses: actions/upload-artifact@v7
-        with:
-          name: windows-app
-          path: build/windows/
-          if-no-files-found: error
-          retention-days: 1
+  publish:
+    needs: [tag, build]
+    if: needs.tag.outputs.dry-run != 'true'
+    uses: Spatulox/release-kit/.github/workflows/publish.yml@v1
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
+      prerelease: ${{ needs.tag.outputs.prerelease == 'true' }}
+      title: PackagingOnLinux ${{ needs.tag.outputs.tag }}
+      require-changelog: true
 
-  # The AppImage, Flatpak and Snap can't use the system's Python and PyQt6 like the deb:
-  # they package this bundle (Python and Qt included). It is built on the oldest runner,
-  # so that it runs with older glibc versions too.
-  linux-app:
-    needs: version
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-      - run: pip install PySide6-Essentials pyinstaller
-      - name: Set the version from the tag
-        run: sed -i 's/^__version__ = .*/__version__ = "${{ needs.version.outputs.version }}"/' packagingonlinux/__init__.py
-      - name: Freeze with PyInstaller
-        run: >
-          pyinstaller --noconfirm --name packagingonlinux
-          --paths . --collect-submodules packagingonlinux --exclude-module PyQt6
-          --workpath build/pyinstaller --distpath build/linux
-          selfpack/frozen_launcher.py
-      - run: test "$(build/linux/packagingonlinux/packagingonlinux --version)" = "${{ needs.version.outputs.version }}"
-      # Artifacts drop the executable bit: keep it in a tar.
-      - run: tar -C build -cf linux-app.tar linux
-      - uses: actions/upload-artifact@v7
-        with:
-          name: linux-app
-          path: linux-app.tar
-          if-no-files-found: error
-          retention-days: 1
-
-  appimage-flatpak:
-    needs: [version, test, linux-app]
+  move-v0:
+    needs: [tag, publish]
+    if: needs.tag.outputs.prerelease == 'false'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends squashfs-tools flatpak flatpak-builder librsvg2-common
-      - uses: actions/download-artifact@v8
-        with:
-          name: linux-app
-      - run: mkdir -p build && tar -C build -xf linux-app.tar
-      - name: Set the package version from the tag
-        run: sed -i 's/^version = .*/version = "${{ needs.version.outputs.version }}"/' packaging.toml
-      - run: python3 selfpack/linux/bundled_config.py
-      - run: python3 -m packagingonlinux build -c build/packaging-bundled.toml -f appimage,flatpak -o dist
-      - name: Run the AppImage
-        run: test "$(dist/*.AppImage --appimage-extract-and-run --version)" = "${{ needs.version.outputs.version }}"
-      - name: Install and run the Flatpak
-        run: |
-          flatpak install --user -y --noninteractive --bundle dist/*.flatpak
-          test "$(dbus-run-session -- flatpak run io.github.spatulox.PackagingOnLinux --version)" = "${{ needs.version.outputs.version }}"
-      - uses: actions/upload-artifact@v7
-        with:
-          name: pkg-appimage-flatpak
-          path: |
-            dist/*.AppImage
-            dist/*.flatpak
-          if-no-files-found: error
-
-  # snapcraft builds directly on the runner (SNAPCRAFT_BUILD_ENVIRONMENT=host), as root and
-  # on the Ubuntu release of [snap] base (24.04 for core24).
-  snap:
-    needs: [version, test, linux-app]
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-      - run: sudo snap install snapcraft --classic
-      - uses: actions/download-artifact@v8
-        with:
-          name: linux-app
-      - run: mkdir -p build && tar -C build -xf linux-app.tar
-      - name: Set the package version from the tag
-        run: sed -i 's/^version = .*/version = "${{ needs.version.outputs.version }}"/' packaging.toml
-      - run: python3 selfpack/linux/bundled_config.py
-      - run: sudo SNAPCRAFT_BUILD_ENVIRONMENT=host python3 -m packagingonlinux build -c build/packaging-bundled.toml -f snap -o dist
-      - name: Install and run the snap
-        run: |
-          sudo snap install --dangerous --classic dist/*.snap
-          test "$(/snap/bin/packagingonlinux --version)" = "${{ needs.version.outputs.version }}"
-      - uses: actions/upload-artifact@v7
-        with:
-          name: pkg-snap
-          path: dist/*.snap
-          if-no-files-found: error
-
-  linux:
-    needs: [version, test, windows-app]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends nsis
-      - uses: actions/download-artifact@v8
-        with:
-          name: windows-app
-          path: build/windows
-      - name: Set the package version from the tag
-        run: sed -i 's/^version = .*/version = "${{ needs.version.outputs.version }}"/' packaging.toml
-      - run: python3 -m packagingonlinux build -f deb,tarball,zip,nsis -o dist
-      - uses: actions/upload-artifact@v7
-        with:
-          name: pkg-linux
-          path: dist/*
-          if-no-files-found: error
-
-  rpm:
-    needs: [version, test]
-    runs-on: ubuntu-latest
-    container: fedora:latest
-    steps:
-      - run: dnf install -y rpm-build python3 findutils sed
-      - uses: actions/checkout@v7
-      - name: Set the package version from the tag
-        run: sed -i 's/^version = .*/version = "${{ needs.version.outputs.version }}"/' packaging.toml
-      - run: python3 -m packagingonlinux build -f rpm -o dist
-      - uses: actions/upload-artifact@v7
-        with:
-          name: pkg-rpm
-          path: dist/*.rpm
-          if-no-files-found: error
-
-  release:
-    needs: [version, linux, rpm, appimage-flatpak, snap]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: pkg-*
-          path: dist
-          merge-multiple: true
-      - uses: actions/download-artifact@v8
-        with:
-          name: release-notes
-          path: notes
-      - run: ls -l dist
-      - run: >
-          gh release create "$GITHUB_REF_NAME" dist/*
-          --title "PackagingOnLinux ${{ needs.version.outputs.version }}"
-          --notes-file notes/release-notes.md --verify-tag
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
+          git tag -f v0 "$GITHUB_SHA"
+          git push -f origin v0
