@@ -94,16 +94,27 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # deb, rpm, tar.gz (build/app, with the system's Python and PyQt6) and the Windows formats.
+  # deb, tar.gz (build/app, with the system's Python and PyQt6) and the Windows formats.
   system:
     needs: [test, windows-app]
     uses: ./.github/workflows/package.yml
     with:
-      formats: deb,rpm,tarball,zip,nsis
+      formats: deb,tarball,zip,nsis
       version: ${{ inputs.debversion }}
       download: windows-app
       download-path: build/windows
       artifact-name: release-system
+      packagingonlinux-ref: ${{ github.sha }}
+
+  # The rpm is built on Fedora (its rpm macros, %{dist} in the release): the image input.
+  rpm:
+    needs: test
+    uses: ./.github/workflows/package.yml
+    with:
+      image: fedora:latest
+      formats: rpm
+      version: ${{ inputs.debversion }}
+      artifact-name: release-rpm
       packagingonlinux-ref: ${{ github.sha }}
 
   bundled:
