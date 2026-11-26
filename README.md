@@ -180,7 +180,7 @@ jobs:
 | `runs-on` | `ubuntu-24.04` | Runner of the main job (e.g. `ubuntu-22.04` for an older glibc) |
 | `packagingonlinux-ref` | `v0` | PackagingOnLinux version |
 
-Every format but snap is built in one job (rpm with Ubuntu's `rpmbuild`), so the build command runs once; the snap is built in a second job, as root, on the Ubuntu release of `[snap] base`. `v0` follows the latest stable 0.x release. [`ci/github/example-build.yml`](ci/github/example-build.yml) is a complete example.
+Every format but snap is built in one job (rpm with Ubuntu's `rpmbuild`), so the build command runs once; the snap is built in a second job, as root, on the Ubuntu release of `[snap] base`. `v0` follows the latest stable 0.x release. [`ci/github/example-build.yml`](ci/github/example-build.yml) is a complete example, and this repository's own `.github/workflows/build.yml` uses it to release PackagingOnLinux.
 
 ## Development
 
