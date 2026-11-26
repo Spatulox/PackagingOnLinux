@@ -63,8 +63,10 @@ Fill in the form, choose the binary and the icon (in the Linux tab, and in the W
 packagingonlinux init                                  # create a packaging.toml interactively
 packagingonlinux doctor                                # which formats this machine can build
 packagingonlinux check -c packaging.toml               # validate the config and generated metadata
-packagingonlinux build -c packaging.toml [-f deb,rpm] [-o dist]
+packagingonlinux build -c packaging.toml [-f deb,rpm] [-o dist] [--version 1.2.0~beta]
 ```
+
+`--version` replaces `[app] version` without editing the file (the build command gets it in `$APP_VERSION`), e.g. to use the version of a release tag.
 
 A failing format does not stop the others; errors are listed at the end. `packagingonlinux --help` lists the formats, the tools each one needs, examples and exit statuses; the full reference is the man page, readable from the sources with `man -l docs/man/packagingonlinux.1`.
 

@@ -3,6 +3,11 @@
 All notable changes to PackagingOnLinux are documented here.
 A release is published only for a version that has a section in this file.
 
+## [Unreleased]
+
+### Added
+- `--version VERSION` option of `build` and `check`: replaces `[app] version` (and `$APP_VERSION` of the build command) without editing packaging.toml, e.g. with the version of a release tag in CI.
+
 ## [0.3.1]
 
 ### Added
