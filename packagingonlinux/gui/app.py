@@ -12,8 +12,8 @@ from packagingonlinux.gui.form import AppForm, PathField
 from packagingonlinux.gui.formats import FormatsPanel
 from packagingonlinux.gui.qt import (
     QAction, QApplication, QDesktopServices, QFileDialog, QFontDatabase, QFormLayout, QHBoxLayout,
-    QIcon, QKeySequence, QMainWindow, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSplitter,
-    Qt, QToolButton, QUrl, QVBoxLayout, QWidget,
+    QIcon, QKeySequence, QMainWindow, QMenu, QMessageBox, QPainter, QPalette, QPlainTextEdit, QPushButton,
+    QScrollArea, QSplitter, QSplitterHandle, Qt, QToolButton, QUrl, QVBoxLayout, QWidget,
 )
 from packagingonlinux.gui.recent import RecentFiles, default_settings
 from packagingonlinux.gui.release import ask_release
@@ -22,6 +22,25 @@ from packagingonlinux.gui.worker import BuildWorker
 TOML_FILTER = "Configuration PackagingOnLinux (packaging.toml *.toml)"
 # [app] id in the root packaging.toml: the installed .desktop file and icon are named after it.
 APP_ID = "io.github.spatulox.PackagingOnLinux"
+# QSettings key of the form/log splitter sizes, restored at startup.
+SPLITTER_KEY = "splitterState"
+
+
+class GripHandle(QSplitterHandle):
+    """Splitter handle with a visible grip: styles like Fusion draw a bare strip nobody finds."""
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(self.palette().color(QPalette.ColorRole.Dark))
+        r = self.rect()
+        for i in (-1, 0, 1):  # three dots across the middle
+            painter.drawEllipse(r.center().x() + i * 8 - 2, r.center().y() - 2, 4, 4)
+
+
+class GripSplitter(QSplitter):
+    def createHandle(self) -> QSplitterHandle:
+        return GripHandle(self.orientation(), self)
 
 
 class MainWindow(QMainWindow):
@@ -29,7 +48,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.config_path: Path | None = None
         self.worker: BuildWorker | None = None
-        self.recent = RecentFiles(default_settings())
+        self.settings = default_settings()
+        self.recent = RecentFiles(self.settings)
         # Why the login shell's environment could not be loaded, repeated in each build log.
         self.env_warning: str | None = None
         self.resize(820, 900)
@@ -71,12 +91,19 @@ class MainWindow(QMainWindow):
         bottom_layout.addLayout(buttons)
         bottom_layout.addWidget(self.log)
 
-        splitter = QSplitter(Qt.Orientation.Vertical)
-        splitter.addWidget(scroll)
-        splitter.addWidget(bottom)
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 1)
-        self.setCentralWidget(splitter)
+        # Drag the handle above the buttons to make the log taller (or shorter).
+        self.splitter = GripSplitter(Qt.Orientation.Vertical)
+        self.splitter.addWidget(scroll)
+        self.splitter.addWidget(bottom)
+        self.splitter.setStretchFactor(0, 3)
+        self.splitter.setStretchFactor(1, 1)
+        self.splitter.setHandleWidth(10)
+        self.splitter.setChildrenCollapsible(False)
+        self.splitter.handle(1).setToolTip("Glisser pour agrandir ou réduire le journal")
+        state = self.settings.value(SPLITTER_KEY)
+        if state:
+            self.splitter.restoreState(state)
+        self.setCentralWidget(self.splitter)
 
         self._make_actions()
         self.formats.set_formats(list(BACKENDS))
@@ -283,6 +310,8 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Construction en cours", "Attendez la fin de la construction.")
             event.ignore()
             return
+        self.settings.setValue(SPLITTER_KEY, self.splitter.saveState())
+        self.settings.sync()
         super().closeEvent(event)
 
 

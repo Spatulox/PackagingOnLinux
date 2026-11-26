@@ -292,6 +292,24 @@ def test_recent_menu_hides_missing_files_and_clears(window, hello_project):
 
 
 
+def test_log_splitter_can_grow_and_is_remembered(qtbot, window):
+    window.show()
+    splitter = window.splitter
+    assert not splitter.childrenCollapsible()
+    assert splitter.handle(1).toolTip()
+    default = splitter.sizes()
+    splitter.setSizes([60, sum(default) - 60])  # handle dragged up: the log gets taller
+    grown = splitter.sizes()
+    assert grown[1] > default[1]
+    window.close()  # saves the sizes
+
+    again = MainWindow()
+    qtbot.addWidget(again)
+    again.resize(window.size())
+    again.show()
+    assert again.splitter.sizes() == grown
+
+
 def test_app_id_matches_desktop_file(qapp):
     """The dock icon needs WM_CLASS (X11) and app_id (Wayland) to equal the .desktop file id."""
     root = config.load(Path(__file__).resolve().parent.parent / "packaging.toml")
